@@ -24,7 +24,7 @@ return new class extends Migration
             $table->foreignId('pinned_by')->nullable()->constrained('users');
             $table->timestamps();
  
-            $table->unique(['project_id', 'source_table', 'source_column']);
+            $table->unique(['project_id', 'source_table', 'source_column'], 'mcc_project_source_unique');
         });
  
         // Configurable dropdown options per column
