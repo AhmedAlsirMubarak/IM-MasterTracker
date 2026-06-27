@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\ProjectWell;
 use App\Models\CellComment;
 use App\Models\AuditLog;
+use App\Models\CustomCellValue;
 use App\Services\AuditService;
 use App\Services\CountdownService;
 use App\Services\MasterColumnService;
@@ -127,10 +128,19 @@ class ProjectWellController extends Controller
         }
  
         $wells = $query->paginate($request->input('per_page', 50));
- 
+
+        // Load custom cell values for all wells on this page in one query
+        $wellIds = $wells->pluck('id');
+        $customByWell = CustomCellValue::whereIn('well_id', $wellIds)
+            ->get()
+            ->groupBy('well_id');
+
         // Attach computed fields and latest comment per column
-        $wells->getCollection()->transform(function ($well) {
+        $wells->getCollection()->transform(function ($well) use ($customByWell) {
             $well->computed = $this->countdown->computeForWell($well);
+            $well->custom   = $customByWell->get($well->id, collect())
+                ->pluck('value', 'source_column')
+                ->toArray();
 
             $well->cell_comments = $well->cellComments
                 ->groupBy(fn($c) => "{$c->source_table}.{$c->source_column}")
@@ -188,7 +198,7 @@ class ProjectWellController extends Controller
     public function updateCell(Request $request, ProjectWell $well)
     {
         $data = $request->validate([
-            'source_table'  => 'required|in:project_wells,sap_tracking,dc_tracking',
+            'source_table'  => 'required|in:project_wells,sap_tracking,dc_tracking,custom',
             'source_column' => 'required|string',
             'value'         => 'nullable',
             'comment'       => 'nullable|string|max:1000',
@@ -244,6 +254,18 @@ class ProjectWellController extends Controller
                         'updated_by'           => auth()->id(),
                     ]);
                 })(),
+
+                'custom' => (function () use ($well, $data, &$oldValue) {
+                    $cv = CustomCellValue::firstOrNew([
+                        'well_id'       => $well->id,
+                        'source_column' => $data['source_column'],
+                    ]);
+                    $oldValue  = $cv->value;
+                    $cv->value      = $data['value'];
+                    $cv->updated_by = auth()->id();
+                    $cv->project_id = $well->project_id;
+                    $cv->save();
+                })(),
             };
 
             // Log audit
@@ -267,6 +289,8 @@ class ProjectWellController extends Controller
         // Return updated well with computed fields and latest comment per column
         $well->refresh()->load(['sapTracking.updatedBy:id,name', 'dcTracking.updatedBy:id,name', 'cellComments.author:id,name']);
         $well->computed = $this->countdown->computeForWell($well);
+        $well->custom   = CustomCellValue::where('well_id', $well->id)
+            ->get()->pluck('value', 'source_column')->toArray();
 
         $well->cell_comments = $well->cellComments
             ->groupBy(fn($c) => "{$c->source_table}.{$c->source_column}")

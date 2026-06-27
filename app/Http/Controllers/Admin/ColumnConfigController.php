@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\MasterColumnConfig;
 use App\Models\ColumnStatusOption;
+use App\Models\CustomCellValue;
 use App\Models\Project;
 use App\Services\MasterColumnService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
  
 class ColumnConfigController extends Controller
 {
@@ -83,6 +85,65 @@ class ColumnConfigController extends Controller
         return response()->json(['message' => 'Order saved.']);
     }
  
+    /**
+     * Create a new custom column for a project.
+     */
+    public function storeCustom(Request $request, Project $project)
+    {
+        $data = $request->validate([
+            'label'           => 'required|string|max:100',
+            'column_type'     => 'required|in:text,date,number,select',
+            'after_config_id' => 'nullable|integer|exists:master_column_configs,id',
+        ]);
+
+        $slug = substr(Str::slug($data['label'], '_'), 0, 40) . '_' . Str::random(6);
+
+        if ($data['after_config_id']) {
+            $after = MasterColumnConfig::where('project_id', $project->id)
+                ->where('id', $data['after_config_id'])
+                ->firstOrFail();
+            $insertAt = $after->display_order + 1;
+            MasterColumnConfig::where('project_id', $project->id)
+                ->where('display_order', '>=', $insertAt)
+                ->increment('display_order');
+        } else {
+            $insertAt = (MasterColumnConfig::where('project_id', $project->id)->max('display_order') ?? 0) + 1;
+        }
+
+        $config = MasterColumnConfig::create([
+            'project_id'    => $project->id,
+            'source_table'  => 'custom',
+            'source_column' => $slug,
+            'display_label' => $data['label'],
+            'column_type'   => $data['column_type'],
+            'display_order' => $insertAt,
+            'is_pinned'     => true,
+            'is_locked'     => false,
+            'pinned_by'     => auth()->id(),
+        ]);
+
+        return response()->json($config, 201);
+    }
+
+    /**
+     * Delete a custom column and all its stored values.
+     */
+    public function destroyCustom(Project $project, MasterColumnConfig $config)
+    {
+        abort_if($config->project_id !== $project->id, 404);
+        abort_if($config->source_table !== 'custom', 403, 'Only custom columns can be deleted.');
+
+        CustomCellValue::where('source_column', $config->source_column)->delete();
+
+        ColumnStatusOption::where('source_table', 'custom')
+            ->where('source_column', $config->source_column)
+            ->delete();
+
+        $config->delete();
+
+        return response()->json(['message' => 'Column deleted.']);
+    }
+
     /**
      * Get/update status options for a column.
      */

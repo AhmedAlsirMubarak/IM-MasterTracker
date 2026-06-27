@@ -6,46 +6,14 @@ Alpine.plugin(focus)
 Alpine.plugin(persist)
 
 // ── Field → Well Location mapping ────────────────────────────────────────────
-const FIELD_LOCATIONS = {
-    'AFAR':           ['D-AA', 'MHL', 'LNF', 'SHAMMAR', 'SKR'],
-    'AL HUSAIN EAST': ['LF', 'LASF', 'RMS12', 'USPM'],
-    'DAFIQ':          ['DAF', 'DAF_EAST', 'DAF_MAIN_EAST', 'DAFIQ'],
-    'DHRUMA':         ['DHRUMA'],
-    'DHULAIMA':       ['DHULAIMA', 'MAZKHOUR', 'MZK'],
-    'DHULAIMA WEST':  ['DM', 'DMA', 'DMB', 'DM_CCUS', 'DM_US', 'DM_USAA', 'DM_USBB', 'DM_USCC', 'DM_USC', 'DM_USDEF'],
-    'LEKHWAIR':       ['LB_KH', 'LB_LSA', 'LB_LSB', 'LEKHWAIR'],
-    'LEKHWAIR AN':    ['AN', 'AN_F', 'AN_H', 'AN_I', 'AN_LSA', 'AN_LSB', 'ANHAAR'],
-    'LEKHWAIR - AN':  ['AN', 'AN_F', 'AN_H', 'AN_I', 'AN_LSA', 'AN_LSB', 'ANHAAR'],
-    'LEKHWAIR AS':    ['AS', 'AS_GRABEN', 'AS_KH', 'AS_LSA', 'AS_LSB', 'AS_LSV'],
-    'LEKHWAIR - AS':  ['AS', 'AS_GRABEN', 'AS_KH', 'AS_LSA', 'AS_LSB', 'AS_LSV'],
-    'LEKHWAIR - CD':  ['LCD', 'LCD_LSA', 'LCD_LSB'],
-    'LEKHWAIR EAST':  ['LE_LS', 'LE_USC', 'LE_USD', 'LE_USDE', 'LE_USE', 'LE_USF', 'LE_USH'],
-    'LEKHWAIR INTRA': ['INT'],
-    'MALAAN':         ['MALAAN', 'MANAHAL', 'MLN', 'MLNB', 'MLNW'],
-    'MALAAN WEST':    ['MLNW'],
-    'SAYYAH':         ['SAYYAH', 'SYH', 'SYH8BLOCK', 'SYH_NC', 'SYH_SWBLOCK', 'SYHN'],
-    'SAYYAH - NORTH': ['SYH_NC', 'SYHN'],
-    'UFUQ':           ['UF', 'UF_USI', 'UF_USJ', 'UF_USK', 'UFUQ'],
-    'UFUQ - ARUMA':   ['UF_ARH', 'UF_ARV'],
-}
+const FIELD_LOCATIONS = {}
 
 const ALL_LOCATIONS = [
-    'LB_KH','LB_LSA','LB_LSB',
-    'LE_LS','LE_USE','LE_USD','LE_USC','LE_USDE','LE_USF','LE_USH',
-    'UF','UFUQ','UF_USI','UF_USJ','UF_USK','UF_ARH','UF_ARV',
-    'MZK','MAZKHOUR',
-    'DAF','DAFIQ','DAF_EAST','DAF_MAIN_EAST',
-    'DM','DMA','DMB','DM_US','DM_USAA','DM_USBB','DM_USCC','DM_USC','DM_USDEF','DM_CCUS',
-    'RMS12',
-    'LF','LASF',
-    'USPM',
-    'INT',
-    'LCD','LCD_LSA','LCD_LSB',
-    'SYH','SYHN','SYH_NC','SYH_SWBLOCK','SYH8BLOCK','SAYYAH',
-    'AN','AN_F','AN_H','AN_I','AN_LSA','AN_LSB','ANHAAR',
-    'AS','AS_KH','AS_LSA','AS_LSB','AS_LSV','AS_GRABEN',
-    'MLN','MLNW','MLNB','MALAAN','MANAHAL',
-    'LEKHWAIR','DHULAIMA','DHRUMA','SHAMMAR','MHL','LNF','SKR','D-AA',
+    'LEKHWAIR-UM2',
+    'LEKHWAIR-UM',
+    'RASHEEQ D3',
+    'RASHEEQD4',
+    'RASHEEQ D5',
 ]
 
 window.FIELD_LOCATIONS = FIELD_LOCATIONS
@@ -73,6 +41,7 @@ window.sourceColor = src => ({
     sap_tracking:  '#BA7517',
     dc_tracking:   '#D85A30',
     computed:      '#639922',
+    custom:        '#7C3AED',
 }[src] || '#888780')
 
 window.kpiStatus = days => {
@@ -230,6 +199,7 @@ Alpine.data('cellEditPanel', () => ({
     saved:  false,
     error:  '',
     wellTypeCustom: false,
+    wellLocationCustom: false,
     WELL_TYPE_PRESETS: ['OP', 'OP FF', 'WI'],
     DATE_COLS: ['hua_date','earliest_start_date','earliest_end_date','hook_up_tie_in_completed',
                 'commissioning_date','z6_creation_date','z6_awap_date','z6_appr_date',
@@ -252,6 +222,8 @@ Alpine.data('cellEditPanel', () => ({
             this.comments = []
             this.wellTypeCustom = col.source_column === 'well_type'
                 && !!this.value && !this.WELL_TYPE_PRESETS.includes(this.value)
+            this.wellLocationCustom = col.source_column === 'well_location'
+                && !!this.value && !ALL_LOCATIONS.includes(this.value)
             await Promise.all([this.loadOptions(col), this.loadHistory(col), this.loadComments(col)])
         })
     },
@@ -262,6 +234,7 @@ Alpine.data('cellEditPanel', () => ({
         if (!col || !well) return ''
         if (col.source_table === 'sap_tracking') return well.sap_tracking?.[col.source_column] ?? ''
         if (col.source_table === 'dc_tracking')  return well.dc_tracking?.[col.source_column]  ?? ''
+        if (col.source_table === 'custom')       return well.custom?.[col.source_column] ?? ''
         return well[col.source_column] ?? ''
     },
 
@@ -348,6 +321,10 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
     editWell:       null,
     auditWell:      null,
     showAddWell:    false,
+    showAddColumn:  false,
+    addColForm:     { label: '', column_type: 'text', after_config_id: '', selectOptions: [{ label: '', color: '#888780' }] },
+    addColSaving:   false,
+    addColError:    '',
     search:         '',
     filterType:     '',
     filterYear:     String(new Date().getFullYear()),
@@ -472,6 +449,7 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
 
     canEdit(col, role, isSuperAdmin) {
         if (col.source_table === 'computed')       return false
+        if (col.source_table === 'custom')         return isSuperAdmin
         if (col.source_table === 'project_wells')  return isSuperAdmin || role === 'manager'
         if (col.source_table === 'sap_tracking')   return isSuperAdmin || role === 'sap_admin'
         if (col.source_table === 'dc_tracking')    return isSuperAdmin || role === 'dc'
@@ -480,12 +458,60 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
 
     getCellValue(well, col) {
         let val
-        if (col.source_table === 'sap_tracking') val = well.sap_tracking?.[col.source_column]
-        else if (col.source_table === 'dc_tracking')  val = well.dc_tracking?.[col.source_column]
-        else if (col.source_table === 'computed')      val = well.computed?.[col.source_column]
+        if (col.source_table === 'sap_tracking')   val = well.sap_tracking?.[col.source_column]
+        else if (col.source_table === 'dc_tracking') val = well.dc_tracking?.[col.source_column]
+        else if (col.source_table === 'computed')    val = well.computed?.[col.source_column]
+        else if (col.source_table === 'custom')      val = well.custom?.[col.source_column]
         else val = well[col.source_column]
         if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(val)) return val.slice(0, 10)
         return val
+    },
+
+    async addColumn() {
+        this.addColSaving = true; this.addColError = ''
+        try {
+            const res = await fetch(`/projects/${projectId}/custom-columns`, {
+                method: 'POST', headers: jsonHeaders(),
+                body: JSON.stringify({
+                    label:           this.addColForm.label,
+                    column_type:     this.addColForm.column_type,
+                    after_config_id: this.addColForm.after_config_id || null,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) { this.addColError = data.message || 'Failed to create column.'; return }
+
+            // If select, persist options immediately
+            if (this.addColForm.column_type === 'select') {
+                const valid = this.addColForm.selectOptions.filter(o => o.label.trim())
+                if (valid.length) {
+                    await fetch(`/columns/custom/${data.source_column}/options`, {
+                        method: 'POST', headers: jsonHeaders(),
+                        body: JSON.stringify({
+                            options: valid.map((o, i) => ({
+                                option_value: o.label.trim(),
+                                option_label: o.label.trim(),
+                                option_color: o.color || '#888780',
+                                sort_order:   i,
+                            })),
+                        }),
+                    })
+                }
+            }
+
+            this.showAddColumn = false
+            this.addColForm = { label: '', column_type: 'text', after_config_id: '', selectOptions: [{ label: '', color: '#888780' }] }
+            this.load()
+        } catch { this.addColError = 'Network error.' }
+        this.addColSaving = false
+    },
+
+    async deleteColumn(col) {
+        if (!confirm(`Delete column "${col.display_label}"?\n\nAll stored values will be permanently removed.`)) return
+        const res = await fetch(`/projects/${projectId}/custom-columns/${col.id}`, {
+            method: 'DELETE', headers: jsonHeaders(),
+        })
+        if (res.ok) this.load()
     },
 
     getUpdatedBy(well, col) {

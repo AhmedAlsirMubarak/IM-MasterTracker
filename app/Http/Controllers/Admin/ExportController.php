@@ -24,7 +24,7 @@ class ExportController extends Controller
             'HUA Date', 'RAMZ ID', 'Year', 'Responsible Asset',
             'CIMS Upload Status', 'SPIR Status', 'ASB EDW Status',
             'E-Pad Closeout', 'RLMU Status',
-            'SAP Status', 'Earliest Start', 'Earliest End', 'Z6 Number',
+            'SAP Status', 'Earliest Start', 'Earliest End', 'Station Code', 'Z6 Number',
             'AFC EDW Status', 'Tie-in Completed', 'Commissioning Date', 'SAP KPI (days)',
             'ASB Document Status', 'ASB Receive Date', 'ASB Submission Date',
             'AFC Upload Status', 'RLMU Upload Status',
@@ -56,6 +56,7 @@ class ExportController extends Controller
                 $sap?->sap_status,
                 $sap?->earliest_start_date?->toDateString(),
                 $sap?->earliest_end_date?->toDateString(),
+                $sap?->station_code,
                 $sap?->z6_number,
                 $sap?->afc_edw_status,
                 $sap?->hook_up_tie_in_completed?->toDateString(),
@@ -88,7 +89,7 @@ class ExportController extends Controller
 
         $headers = [
             'Well No.', 'Well ID', 'Well Type',
-            'Earliest Start Date', 'Earliest End Date', 'Z6 Number',
+            'Earliest Start Date', 'Earliest End Date', 'Station Code', 'Z6 Number',
             'SAP Status', 'AFC EDW Status', 'AFC Document SPO Status',
             'Tie-in Completed', 'Commissioning Date',
             'Z6 Creation Date', 'Z6 AWAP Date', 'Z6 APPR Date',
@@ -108,6 +109,7 @@ class ExportController extends Controller
                 $well->well_type,
                 $sap?->earliest_start_date?->toDateString(),
                 $sap?->earliest_end_date?->toDateString(),
+                $sap?->station_code,
                 $sap?->z6_number,
                 $sap?->sap_status,
                 $sap?->afc_edw_status,

@@ -8,7 +8,7 @@ class MasterColumnConfig extends Model
 {
     protected $fillable = [
         'project_id', 'source_table', 'source_column',
-        'display_label', 'display_order', 'is_pinned', 'is_locked', 'pinned_by',
+        'display_label', 'column_type', 'display_order', 'is_pinned', 'is_locked', 'pinned_by',
     ];
  
     protected $casts = [

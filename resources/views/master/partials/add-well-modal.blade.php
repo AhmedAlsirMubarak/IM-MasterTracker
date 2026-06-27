@@ -3,6 +3,7 @@
      x-data="{
         form: { contract_no:'', scope:'', hua_date:'', well_id:'', well_number:'', well_type:'', well_field:'', well_location:'', ramz_id:'', year: {{ date('Y') }}, responsible_asset:'' },
         wellTypeCustom: false,
+        wellLocationCustom: false,
         saving: false, error: '',
         csrf() { return document.querySelector('meta[name=csrf-token]')?.content ?? '' },
         async save() {
@@ -49,12 +50,20 @@
                     </select>
                 </div>
                 <div><label class="label">Well Location</label>
-                    <select x-model="form.well_location" class="select">
+                    <select :value="wellLocationCustom ? '__custom__' : form.well_location"
+                            @change="if ($event.target.value === '__custom__') { wellLocationCustom = true; form.well_location = '' } else { wellLocationCustom = false; form.well_location = $event.target.value }"
+                            class="select">
                         <option value="">— Select —</option>
                         <template x-for="loc in (window.FIELD_LOCATIONS[form.well_field] || window.ALL_LOCATIONS)" :key="loc">
                             <option :value="loc" x-text="loc"></option>
                         </template>
+                        <option value="__custom__">Other / type new…</option>
                     </select>
+                    <input x-show="wellLocationCustom"
+                           x-model="form.well_location"
+                           type="text"
+                           class="input mt-1 text-sm"
+                           placeholder="Type well location…" />
                 </div>
                 <div><label class="label">Well Type</label>
                     <select :value="wellTypeCustom ? '__custom__' : form.well_type"

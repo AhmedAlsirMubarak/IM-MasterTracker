@@ -88,18 +88,51 @@
                 </select>
             </template>
 
-            {{-- Well Location select (filtered by current well's Field value) --}}
-            <template x-if="editCell?.source_column === 'well_location'">
+            {{-- Station Code select --}}
+            <template x-if="editCell?.source_column === 'station_code'">
                 <select x-model="value" class="select text-sm">
                     <option value="">— Select —</option>
-                    <template x-for="loc in filteredLocations(editWell?.well_field)" :key="loc">
-                        <option :value="loc" x-text="loc"></option>
-                    </template>
+                    <option value="LEK">LEK</option>
+                    <option value="USP">USP</option>
                 </select>
             </template>
 
+            {{-- Custom date column --}}
+            <template x-if="editCell?.source_table === 'custom' && editCell?.column_type === 'date'">
+                <input x-model="value" type="date" class="input text-sm" />
+            </template>
+
+            {{-- Custom number column --}}
+            <template x-if="editCell?.source_table === 'custom' && editCell?.column_type === 'number'">
+                <input x-model="value" type="number" class="input text-sm" />
+            </template>
+
+            {{-- Well Location select --}}
+            <template x-if="editCell?.source_column === 'well_location'">
+                <div>
+                    <select :value="wellLocationCustom ? '__custom__' : value"
+                            @change="if ($event.target.value === '__custom__') { wellLocationCustom = true; value = '' } else { wellLocationCustom = false; value = $event.target.value }"
+                            class="select text-sm">
+                        <option value="">— Select —</option>
+                        <template x-for="loc in filteredLocations(editWell?.well_field)" :key="loc">
+                            <option :value="loc" x-text="loc"></option>
+                        </template>
+                        @if(auth()->user()->isSuperAdmin())
+                        <option value="__custom__">Other / type new…</option>
+                        @endif
+                    </select>
+                    @if(auth()->user()->isSuperAdmin())
+                    <input x-show="wellLocationCustom"
+                           x-model="value"
+                           type="text"
+                           class="input mt-1 text-sm"
+                           placeholder="Type well location…" />
+                    @endif
+                </div>
+            </template>
+
             {{-- Free text --}}
-            <template x-if="!DATE_COLS.includes(editCell?.source_column) && options.length === 0 && editCell?.source_column !== 'well_type' && editCell?.source_column !== 'responsible_asset' && editCell?.source_column !== 'well_field' && editCell?.source_column !== 'well_location'">
+            <template x-if="!DATE_COLS.includes(editCell?.source_column) && options.length === 0 && editCell?.source_column !== 'well_type' && editCell?.source_column !== 'responsible_asset' && editCell?.source_column !== 'well_field' && editCell?.source_column !== 'well_location' && editCell?.source_column !== 'station_code' && !(editCell?.source_table === 'custom' && (editCell?.column_type === 'date' || editCell?.column_type === 'number'))">
                 <input x-model="value" type="text" class="input text-sm" />
             </template>
 

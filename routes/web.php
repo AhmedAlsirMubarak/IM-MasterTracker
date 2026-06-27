@@ -86,6 +86,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/column-config', [ColumnConfigController::class, 'index']);
             Route::post('/column-config/toggle', [ColumnConfigController::class, 'toggle']);
             Route::post('/column-config/reorder', [ColumnConfigController::class, 'reorder']);
+            Route::post('/custom-columns', [ColumnConfigController::class, 'storeCustom']);
+            Route::delete('/custom-columns/{config}', [ColumnConfigController::class, 'destroyCustom']);
         });
     });
 

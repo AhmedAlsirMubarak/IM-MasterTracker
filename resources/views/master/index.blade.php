@@ -68,7 +68,14 @@
         </a>
 
         @if(auth()->user()->isSuperAdmin())
-        <button @click="showAddWell = true" class="btn-primary btn-sm">
+        <button @click="showAddColumn = true" class="btn-secondary btn-sm flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+            </svg>
+            Add column
+        </button>
+        <button @click="showAddWell = true" class="btn-primary btn-sm flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
@@ -79,7 +86,7 @@
 
     {{-- ── Source legend ─────────────────────────────────────────────────────── --}}
     <div class="flex items-center gap-5 px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-2xs text-gray-500 shrink-0">
-        @foreach([['project_wells','Fixed (Super Admin / Manager)','#1D9E75'],['sap_tracking','SAP Tracking','#BA7517'],['dc_tracking','DC Tracking','#D85A30'],['computed','Computed (auto)','#639922']] as [$key,$label,$color])
+        @foreach([['project_wells','Fixed (Super Admin / Manager)','#1D9E75'],['sap_tracking','SAP Tracking','#BA7517'],['dc_tracking','DC Tracking','#D85A30'],['computed','Computed (auto)','#639922'],['custom','Custom','#7C3AED']] as [$key,$label,$color])
         <span class="flex items-center gap-1.5">
             <span class="inline-block w-4 h-0.5 rounded" style="background:{{ $color }}"></span>
             {{ $label }}
@@ -114,7 +121,19 @@
                     @endif
                     <template x-for="col in columns" :key="col.source_column">
                         <th :style="`border-top: 2.5px solid ${sourceColor(col.source_table)}`"
-                            x-text="col.display_label"></th>
+                            class="group/th relative">
+                            <span x-text="col.display_label"></span>
+                            @if(auth()->user()->isSuperAdmin())
+                            <button x-show="col.source_table === 'custom'"
+                                    @click.stop="deleteColumn(col)"
+                                    class="absolute top-0.5 right-0.5 opacity-0 group-hover/th:opacity-100 transition-opacity text-red-400 hover:text-red-600 p-0.5 rounded"
+                                    title="Delete this column">
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                            @endif
+                        </th>
                     </template>
                     <th class="w-8 bg-gray-50" style="border-top:2.5px solid transparent"></th>
                 </tr>
@@ -319,6 +338,9 @@
 
     {{-- ── Add Well Modal ────────────────────────────────────────────────────── --}}
     @include('master.partials.add-well-modal')
+
+    {{-- ── Add Column Modal ───────────────────────────────────────────────────── --}}
+    @include('master.partials.add-column-modal')
 
     {{-- ── Bulk Delete Action Bar ─────────────────────────────────────────────── --}}
     @if(auth()->user()->isSuperAdmin())

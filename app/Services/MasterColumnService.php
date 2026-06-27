@@ -34,6 +34,7 @@ class MasterColumnService
             'sap_tracking' => [
                 ['column' => 'earliest_start_date',      'label' => 'EarliestStartDate',           'type' => 'date',   'locked' => false],
                 ['column' => 'earliest_end_date',        'label' => 'EarliestEndDate',             'type' => 'date',   'locked' => false],
+                ['column' => 'station_code',             'label' => 'Station Code',                'type' => 'select', 'locked' => false],
                 ['column' => 'z6_number',                'label' => 'Z6 Number',                   'type' => 'text',   'locked' => false],
                 ['column' => 'afc_edw_status',           'label' => 'AFC EDW Status',              'type' => 'select', 'locked' => false],
                 ['column' => 'sap_status',               'label' => 'SAP Status',                  'type' => 'select', 'locked' => false],
@@ -110,15 +111,16 @@ class MasterColumnService
             ['source_table' => 'project_wells', 'source_column' => 'responsible_asset',      'display_label' => 'Responsible Asset',         'display_order' => 11, 'is_locked' => true],
             ['source_table' => 'sap_tracking',  'source_column' => 'earliest_start_date',    'display_label' => 'Earliest Start Date',       'display_order' => 12, 'is_locked' => false],
             ['source_table' => 'sap_tracking',  'source_column' => 'earliest_end_date',      'display_label' => 'Earliest End Date',         'display_order' => 13, 'is_locked' => false],
-            ['source_table' => 'sap_tracking',  'source_column' => 'z6_number',              'display_label' => 'Z6 Number',                 'display_order' => 14, 'is_locked' => false],
-            ['source_table' => 'sap_tracking',  'source_column' => 'afc_edw_status',         'display_label' => 'AFC EDW Status',            'display_order' => 15, 'is_locked' => false],
-            ['source_table' => 'sap_tracking',  'source_column' => 'sap_status',             'display_label' => 'SAP Status',                'display_order' => 16, 'is_locked' => false],
-            ['source_table' => 'computed',       'source_column' => 'sap_kpi',               'display_label' => 'SAP KPI (days)',            'display_order' => 17, 'is_locked' => true],
-            ['source_table' => 'sap_tracking',  'source_column' => 'hook_up_tie_in_completed','display_label' => 'Tie in Completed',         'display_order' => 18, 'is_locked' => false],
-            ['source_table' => 'sap_tracking',  'source_column' => 'commissioning_date',     'display_label' => 'Commissioning Date',        'display_order' => 19, 'is_locked' => false],
-            ['source_table' => 'computed',       'source_column' => 'countdown_days',         'display_label' => 'Countdown 90 days',         'display_order' => 20, 'is_locked' => true],
-            ['source_table' => 'project_wells', 'source_column' => 'rlmu_status',            'display_label' => 'RLMU Status',               'display_order' => 21, 'is_locked' => false],
-            ['source_table' => 'dc_tracking',   'source_column' => 'asb_document_status',    'display_label' => 'ASB Document Status',       'display_order' => 22, 'is_locked' => false],
+            ['source_table' => 'sap_tracking',  'source_column' => 'station_code',           'display_label' => 'Station Code',              'display_order' => 14, 'is_locked' => false],
+            ['source_table' => 'sap_tracking',  'source_column' => 'z6_number',              'display_label' => 'Z6 Number',                 'display_order' => 15, 'is_locked' => false],
+            ['source_table' => 'sap_tracking',  'source_column' => 'afc_edw_status',         'display_label' => 'AFC EDW Status',            'display_order' => 16, 'is_locked' => false],
+            ['source_table' => 'sap_tracking',  'source_column' => 'sap_status',             'display_label' => 'SAP Status',                'display_order' => 17, 'is_locked' => false],
+            ['source_table' => 'computed',       'source_column' => 'sap_kpi',               'display_label' => 'SAP KPI (days)',            'display_order' => 18, 'is_locked' => true],
+            ['source_table' => 'sap_tracking',  'source_column' => 'hook_up_tie_in_completed','display_label' => 'Tie in Completed',         'display_order' => 19, 'is_locked' => false],
+            ['source_table' => 'sap_tracking',  'source_column' => 'commissioning_date',     'display_label' => 'Commissioning Date',        'display_order' => 20, 'is_locked' => false],
+            ['source_table' => 'computed',       'source_column' => 'countdown_days',         'display_label' => 'Countdown 90 days',         'display_order' => 21, 'is_locked' => true],
+            ['source_table' => 'project_wells', 'source_column' => 'rlmu_status',            'display_label' => 'RLMU Status',               'display_order' => 22, 'is_locked' => false],
+            ['source_table' => 'dc_tracking',   'source_column' => 'asb_document_status',    'display_label' => 'ASB Document Status',       'display_order' => 23, 'is_locked' => false],
         ];
  
         $now  = now();
