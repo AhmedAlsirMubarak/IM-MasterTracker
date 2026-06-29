@@ -8,12 +8,13 @@ class MasterColumnConfig extends Model
 {
     protected $fillable = [
         'project_id', 'source_table', 'source_column',
-        'display_label', 'column_type', 'display_order', 'is_pinned', 'is_locked', 'pinned_by',
+        'display_label', 'column_type', 'display_order', 'is_pinned', 'is_locked', 'is_hidden', 'pinned_by',
     ];
- 
+
     protected $casts = [
         'is_pinned'  => 'boolean',
         'is_locked'  => 'boolean',
+        'is_hidden'  => 'boolean',
     ];
  
     public function project()  { return $this->belongsTo(Project::class); }

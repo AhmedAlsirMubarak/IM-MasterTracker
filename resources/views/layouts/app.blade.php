@@ -31,13 +31,48 @@
     {{-- Nav --}}
     <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto scrollbar-thin">
 
-        <a href="{{ route('projects.index') }}"
-           class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}">
+        <a href="{{ route('contracts.index') }}"
+           class="nav-link {{ request()->routeIs('contracts.index') ? 'active' : '' }}">
             @include('components.icons.grid')
-            Projects
+            Contracts
         </a>
 
+        @if(isset($contract) && !isset($project))
+            <a href="{{ route('contracts.index') }}"
+               class="nav-link text-gray-400 hover:text-gray-600 text-2xs">
+                ← All Contracts
+            </a>
+            <p class="section-label">{{ Str::limit($contract->name, 20) }}</p>
+
+            <a href="{{ route('contracts.show', $contract) }}"
+               class="nav-link {{ request()->routeIs('contracts.show') ? 'active' : '' }}">
+                @include('components.icons.grid')
+                Projects
+            </a>
+
+            <a href="{{ route('contracts.letters', $contract) }}"
+               class="nav-link {{ request()->routeIs('contracts.letters') ? 'active' : '' }}"
+               x-data="{ alertCount: 0 }"
+               x-init="fetch('/contracts/{{ $contract->id }}/letters-alerts', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json()).then(d => alertCount = d.count).catch(() => {})">
+                <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                Letters
+                <span x-show="alertCount > 0"
+                      class="ml-auto text-2xs font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none"
+                      x-text="alertCount"></span>
+            </a>
+        @endif
+
         @if(isset($project))
+            {{-- Contract breadcrumb --}}
+            @if($project->contract)
+            <a href="{{ route('contracts.show', $project->contract) }}"
+               class="nav-link text-gray-400 hover:text-gray-600 text-2xs">
+                ← {{ Str::limit($project->contract->name, 22) }}
+            </a>
+            @endif
             <p class="section-label">{{ Str::limit($project->name, 20) }}</p>
 
             <a href="{{ route('projects.master', $project) }}"

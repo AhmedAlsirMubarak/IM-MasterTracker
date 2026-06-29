@@ -35,8 +35,10 @@
             </thead>
             <tbody>
                 <template x-for="log in logs" :key="log.id">
-                    <tr>
-                        <td class="text-gray-500 whitespace-nowrap" x-text="log.created_at_human || log.created_at"></td>
+                    <tr :class="log.model_type === 'import_session' ? 'bg-purple-50/50' : ''">
+                        <td class="text-gray-500 whitespace-nowrap"
+                            :title="log.created_at_relative"
+                            x-text="log.created_at_human || log.created_at"></td>
                         <td class="font-medium" x-text="log.user?.name || '—'"></td>
                         <td>
                             <span class="badge"
@@ -49,10 +51,44 @@
                                 }"
                                 x-text="(log.user?.role || '').replace('_',' ')"></span>
                         </td>
-                        <td class="text-gray-600" x-text="log.project_well?.well_number || '—'"></td>
-                        <td class="font-mono text-xs text-gray-700" x-text="log.field_name"></td>
-                        <td class="text-gray-400 line-through" x-text="log.old_value || '—'"></td>
-                        <td class="font-medium text-gray-900" x-text="log.new_value || '—'"></td>
+
+                        {{-- Well / Event --}}
+                        <td>
+                            <template x-if="log.model_type === 'import_session'">
+                                <span class="badge badge-purple">Import</span>
+                            </template>
+                            <template x-if="log.model_type !== 'import_session'">
+                                <span class="text-gray-600" x-text="log.project_well?.well_number || '—'"></span>
+                            </template>
+                        </td>
+
+                        {{-- Field / File --}}
+                        <td>
+                            <template x-if="log.model_type === 'import_session'">
+                                <span class="text-xs text-gray-600 max-w-xs block truncate"
+                                      :title="log.old_value"
+                                      x-text="log.old_value || '—'"></span>
+                            </template>
+                            <template x-if="log.model_type !== 'import_session'">
+                                <span class="font-mono text-xs text-gray-700" x-text="log.field_name"></span>
+                            </template>
+                        </td>
+
+                        {{-- Old value (cell changes) / hidden for imports --}}
+                        <td class="text-gray-400 line-through"
+                            x-text="log.model_type === 'import_session' ? '' : (log.old_value || '—')"></td>
+
+                        {{-- New value / import result --}}
+                        <td>
+                            <template x-if="log.model_type === 'import_session'">
+                                <span class="text-xs font-medium"
+                                    :class="(log.new_value || '').startsWith('Import failed') ? 'text-red-600' : 'text-green-700'"
+                                    x-text="log.new_value || '—'"></span>
+                            </template>
+                            <template x-if="log.model_type !== 'import_session'">
+                                <span class="font-medium text-gray-900" x-text="log.new_value || '—'"></span>
+                            </template>
+                        </td>
                     </tr>
                 </template>
                 <tr x-show="logs.length === 0 && !loading">

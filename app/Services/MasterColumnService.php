@@ -84,12 +84,17 @@ class MasterColumnService
     /**
      * Get pinned columns for a project, ready to render in the master grid.
      */
-    public function getPinnedColumns(int $projectId): Collection
+    public function getPinnedColumns(int $projectId, bool $showHidden = false): Collection
     {
-        return MasterColumnConfig::where('project_id', $projectId)
+        $q = MasterColumnConfig::where('project_id', $projectId)
             ->where('is_pinned', true)
-            ->orderBy('display_order')
-            ->get();
+            ->orderBy('display_order');
+
+        if (!$showHidden) {
+            $q->where('is_hidden', false);
+        }
+
+        return $q->get();
     }
  
     /**

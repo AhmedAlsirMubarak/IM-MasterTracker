@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Hide Alpine-managed elements until Alpine initialises */
+[x-cloak] { display: none !important; }
+
+@theme {
+    --text-2xs: 0.65rem;
+    --text-2xs--line-height: 1rem;
+}
+
 @layer base {
     html { @apply text-gray-900 antialiased; }
     body { @apply bg-gray-50; }

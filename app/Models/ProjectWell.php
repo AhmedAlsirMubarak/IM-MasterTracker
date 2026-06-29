@@ -67,12 +67,12 @@ class ProjectWell extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    // Computed: countdown from tie-in date
+    // Computed: countdown from commissioning date
     public function getCountdownDaysAttribute(): ?int
     {
-        $tieIn = $this->sapTracking?->hook_up_tie_in_completed;
-        if (!$tieIn) return null;
-        return now()->diffInDays($tieIn, false) * -1; // positive = days since
+        $commissioned = $this->sapTracking?->commissioning_date;
+        if (!$commissioned) return null;
+        return (int) $commissioned->diffInDays(now());
     }
 
     public function getCountdownStatusAttribute(): string
@@ -82,7 +82,7 @@ class ProjectWell extends Model
         $ePadClosed = strtolower($this->e_pad_closeout ?? '') === 'closed';
         if ($ePadClosed) return 'closed';
         if ($days > 90) return 'overdue';   // RED
-        if ($days > 75) return 'warning';   // AMBER
+        if ($days > 80) return 'warning';   // AMBER — 10 days left
         return 'ok';                         // GREEN
     }
 }

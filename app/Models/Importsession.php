@@ -14,7 +14,16 @@ class ImportSession extends Model
  
     protected $casts = [
         'column_mapping' => 'array',
+        'created_at'     => 'datetime',
+        'updated_at'     => 'datetime',
     ];
+
+    protected $appends = ['created_at_human'];
+
+    public function getCreatedAtHumanAttribute(): ?string
+    {
+        return $this->created_at?->format('d M Y, H:i');
+    }
  
     public function project()    { return $this->belongsTo(Project::class); }
     public function uploadedBy() { return $this->belongsTo(User::class, 'uploaded_by'); }

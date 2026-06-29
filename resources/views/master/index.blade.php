@@ -20,6 +20,20 @@
 
         <div class="flex-1"></div>
 
+        {{-- Advanced filters toggle --}}
+        <button @click="showFilters = !showFilters"
+            :class="activeFilterCount > 0 ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'"
+            class="flex items-center gap-1.5 relative">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+            </svg>
+            <span>Filters</span>
+            <span x-show="activeFilterCount > 0"
+                  x-text="activeFilterCount"
+                  class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold leading-none"></span>
+        </button>
+
         <div class="relative">
             <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -68,6 +82,14 @@
         </a>
 
         @if(auth()->user()->isSuperAdmin())
+        {{-- Share button --}}
+        <button @click="openShareModal()" class="btn-secondary btn-sm flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+            </svg>
+            Share
+        </button>
         <button @click="showAddColumn = true" class="btn-secondary btn-sm flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -82,6 +104,73 @@
             Add well
         </button>
         @endif
+    </div>
+
+    {{-- ── Advanced filter panel ─────────────────────────────────────────────── --}}
+    <div x-show="showFilters" x-cloak
+         class="px-4 py-3 bg-blue-50 border-b border-blue-200 shrink-0">
+        <div class="flex flex-wrap items-end gap-3">
+
+            {{-- Earliest Start Date --}}
+            <div class="flex items-center gap-1.5">
+                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Earliest Start ≥</label>
+                <input x-model="filterDateFrom" @change="page=1; load()" type="date"
+                       class="input-sm w-36" />
+            </div>
+            {{-- Earliest End Date --}}
+            <div class="flex items-center gap-1.5">
+                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Earliest End ≤</label>
+                <input x-model="filterDateTo" @change="page=1; load()" type="date"
+                       class="input-sm w-36" />
+            </div>
+
+            {{-- Well ID --}}
+            <div class="flex items-center gap-1.5">
+                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Well ID</label>
+                <input x-model="filterWellId" @input="debouncedLoad()" type="text"
+                       placeholder="e.g. W-123" class="input-sm w-28" />
+            </div>
+
+            {{-- Status (E-Pad) --}}
+            <div class="flex items-center gap-1.5">
+                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Status</label>
+                <select x-model="filterEpadStatus" @change="page=1; load()" class="input-sm w-28">
+                    <option value="">All</option>
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                </select>
+            </div>
+
+            {{-- SAP Status --}}
+            <div class="flex items-center gap-1.5">
+                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">SAP Status</label>
+                <select x-model="filterSapStatus" @change="page=1; load()" class="input-sm w-36">
+                    <option value="">All</option>
+                    <option value="SAP PM Completed">SAP PM Completed</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Pending">Pending</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Not Started">Not Started</option>
+                </select>
+            </div>
+
+            {{-- Delayed commissioning --}}
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input x-model="filterDelayed" @change="page=1; load()" type="checkbox"
+                       class="w-3.5 h-3.5 rounded text-red-600" />
+                <span class="text-2xs font-medium text-gray-700">Commission overdue (&gt;90 days)</span>
+            </label>
+
+            {{-- Reset --}}
+            <button x-show="activeFilterCount > 0"
+                    @click="resetFilters()"
+                    class="btn-secondary btn-sm flex items-center gap-1 ml-auto text-red-600 border-red-200 hover:bg-red-50">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Clear filters
+            </button>
+        </div>
     </div>
 
     {{-- ── Source legend ─────────────────────────────────────────────────────── --}}
@@ -120,10 +209,34 @@
                     </th>
                     @endif
                     <template x-for="col in columns" :key="col.source_column">
-                        <th :style="`border-top: 2.5px solid ${sourceColor(col.source_table)}`"
+                        <th :style="`border-top: 2.5px solid ${col.is_hidden ? '#d1d5db' : sourceColor(col.source_table)}`"
+                            :class="col.is_hidden ? 'opacity-40 italic' : ''"
                             class="group/th relative">
                             <span x-text="col.display_label"></span>
                             @if(auth()->user()->isSuperAdmin())
+                            {{-- Hide / show toggle --}}
+                            <button @click.stop="toggleHideColumn(col)"
+                                    :class="col.is_hidden ? 'opacity-100 text-blue-400' : 'opacity-0 group-hover/th:opacity-100 text-gray-400 hover:text-blue-500'"
+                                    class="absolute top-0.5 left-0.5 transition-opacity p-0.5 rounded"
+                                    :title="col.is_hidden ? 'Show column for all users' : 'Hide column from non-admins'">
+                                {{-- eye-slash when hidden --}}
+                                <template x-if="col.is_hidden">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                    </svg>
+                                </template>
+                                {{-- eye when visible --}}
+                                <template x-if="!col.is_hidden">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                </template>
+                            </button>
+                            {{-- Delete button (custom columns only) --}}
                             <button x-show="col.source_table === 'custom'"
                                     @click.stop="deleteColumn(col)"
                                     class="absolute top-0.5 right-0.5 opacity-0 group-hover/th:opacity-100 transition-opacity text-red-400 hover:text-red-600 p-0.5 rounded"
@@ -152,10 +265,13 @@
 
                         <template x-for="col in columns" :key="col.source_column">
                             <td
-                                :class="canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }})
+                                :class="[
+                                    (canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }}) || canCommentOnly(col, '{{ auth()->user()->role }}'))
                                         ? 'cursor-pointer hover:bg-blue-50 group/cell'
-                                        : 'text-gray-400'"
-                                @click="canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }}) && openCell(well, col)"
+                                        : 'text-gray-400',
+                                    col.is_hidden ? 'opacity-30 select-none' : ''
+                                ]"
+                                @click="(canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }}) || canCommentOnly(col, '{{ auth()->user()->role }}')) && openCell(well, col)"
                                 @mouseenter="showCellTooltip($event, well, col)"
                                 @mouseleave="hideCellTooltip()">
 
@@ -185,7 +301,23 @@
                                 {{-- Regular cell --}}
                                 <template x-if="col.source_column !== 'sap_kpi' && col.source_column !== 'countdown_days'">
                                     <span class="flex items-center gap-1">
+                                        {{-- Hidden cell: super admin sees value with eye-slash + italic; others see nothing (stripped server-side) --}}
+                                        @if(auth()->user()->isSuperAdmin())
+                                        <template x-if="isCellHidden(well, col)">
+                                            <span class="flex items-center gap-1 opacity-40 italic text-gray-500 select-none" title="Hidden from non-admins">
+                                                <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                                </svg>
+                                                <span x-text="getCellValue(well, col) || '—'"></span>
+                                            </span>
+                                        </template>
+                                        <template x-if="!isCellHidden(well, col)">
+                                            <span x-text="getCellValue(well, col) || '—'"></span>
+                                        </template>
+                                        @else
                                         <span x-text="getCellValue(well, col) || '—'"></span>
+                                        @endif
                                         {{-- Comment indicator --}}
                                         <svg x-show="getCellComment(well, col)"
                                             class="w-3 h-3 text-blue-400 shrink-0"
@@ -193,7 +325,7 @@
                                             <path d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z"/>
                                         </svg>
                                         {{-- Edit pencil --}}
-                                        <svg x-show="canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }})"
+                                        <svg x-show="canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }}) || canCommentOnly(col, '{{ auth()->user()->role }}')"
                                             class="w-3 h-3 text-gray-300 opacity-0 group-hover/cell:opacity-100 transition-opacity shrink-0"
                                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -341,6 +473,7 @@
 
     {{-- ── Add Column Modal ───────────────────────────────────────────────────── --}}
     @include('master.partials.add-column-modal')
+    @include('master.partials.share-modal')
 
     {{-- ── Bulk Delete Action Bar ─────────────────────────────────────────────── --}}
     @if(auth()->user()->isSuperAdmin())

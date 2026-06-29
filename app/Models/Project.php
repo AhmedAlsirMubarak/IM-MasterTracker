@@ -10,7 +10,7 @@ class Project extends Model
 {
     use HasFactory, SoftDeletes;
  
-    protected $fillable = ['name', 'contract_no', 'description', 'status', 'created_by'];
+    protected $fillable = ['contract_id', 'name', 'description', 'status', 'created_by'];
  
     public function wells()
     {
@@ -27,6 +27,11 @@ class Project extends Model
         return $this->columnConfigs()->where('is_pinned', true);
     }
  
+    public function contract()
+    {
+        return $this->belongsTo(Contract::class);
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');

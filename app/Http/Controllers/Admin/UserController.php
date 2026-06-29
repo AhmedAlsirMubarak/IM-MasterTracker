@@ -20,7 +20,7 @@ class UserController extends Controller
             'name'       => 'required|string|max:255',
             'email'      => 'required|email|unique:users',
             'password'   => 'required|min:8',
-            'role'       => 'required|in:super_admin,manager,sap_admin,dc,im_lead',
+            'role'       => 'required|in:super_admin,manager,sap_admin,dc,im_lead,viewer',
             'department' => 'nullable|string',
         ]);
  
@@ -34,7 +34,7 @@ class UserController extends Controller
             'name'       => 'sometimes|string|max:255',
             'email'      => 'sometimes|email|unique:users,email,' . $user->id,
             'password'   => 'nullable|min:8',
-            'role'       => 'sometimes|in:super_admin,manager,sap_admin,dc,im_lead',
+            'role'       => 'sometimes|in:super_admin,manager,sap_admin,dc,im_lead,viewer',
             'department' => 'nullable|string',
             'is_active'  => 'boolean',
         ]);

@@ -43,6 +43,7 @@
                                     'badge-amber':  u.role === 'sap_admin',
                                     'badge-coral':  u.role === 'dc',
                                     'badge-blue':   u.role === 'im_lead',
+                                    'badge-gray':   u.role === 'viewer',
                                 }"
                                 x-text="u.role.replace('_',' ')"></span>
                         </td>
@@ -106,6 +107,7 @@
                             <option value="sap_admin">SAP Admin</option>
                             <option value="dc">Document Controller</option>
                             <option value="im_lead">IM Lead</option>
+                            <option value="viewer">Viewer (read-only)</option>
                         </select>
                     </div>
                     <div>

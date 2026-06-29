@@ -13,10 +13,13 @@ class AuditLog extends Model {
     protected $casts = 
     ['created_at' => 'datetime'];
 
-    protected $appends = 
-    ['created_at_human'];
+    protected $appends =
+    ['created_at_human', 'created_at_relative'];
 
     public function getCreatedAtHumanAttribute(): ?string
+    { return $this->created_at?->format('d M Y, H:i'); }
+
+    public function getCreatedAtRelativeAttribute(): ?string
     { return $this->created_at?->diffForHumans(); }
 
     public function user()

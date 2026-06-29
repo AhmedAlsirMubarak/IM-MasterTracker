@@ -8,11 +8,11 @@
             <p class="text-xs font-semibold text-gray-900"
                x-text="editCell?.display_label + ' — Well ' + (editWell?.well_number || '')"></p>
             <p class="text-xs text-gray-400"
-               x-text="{ project_wells:'Fixed / Manager', sap_tracking:'SAP Tracking', dc_tracking:'DC Tracking' }[editCell?.source_table] || ''"></p>
+               x-text="{ project_wells:'Fixed columns', sap_tracking:'SAP Tracking', dc_tracking:'DC Tracking' }[editCell?.source_table] || ''"></p>
         </div>
         <span class="ml-auto text-xs font-semibold px-2 py-0.5 rounded"
             :style="`background:${sourceColor(editCell?.source_table)}22; color:${sourceColor(editCell?.source_table)}`"
-            x-text="{ project_wells:'Manager', sap_tracking:'SAP Admin', dc_tracking:'Doc Controller' }[editCell?.source_table] || ''"></span>
+            x-text="{ project_wells:'Super Admin', sap_tracking:'SAP Admin', dc_tracking:'Doc Controller' }[editCell?.source_table] || ''"></span>
         <button @click="closeCell()" class="btn-ghost btn-sm ml-1">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -23,9 +23,14 @@
     {{-- Panel body --}}
     <div class="grid grid-cols-2 gap-4 px-4 py-3 flex-1 overflow-y-auto min-h-0">
 
-        {{-- Left: value picker --}}
+        {{-- Left: value picker (super_admin / role editors) OR read-only current value (manager) --}}
         <div>
             <label class="label" x-text="editCell?.display_label"></label>
+            @if(auth()->user()->isManager())
+            {{-- Manager: read-only value display, comment only --}}
+            <p class="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 min-h-9" x-text="getCurrent() || '—'"></p>
+            <p class="text-xs text-amber-600 mt-1">View only — add a note below</p>
+            @else
 
             {{-- Date input --}}
             <template x-if="DATE_COLS.includes(editCell?.source_column)">
@@ -139,6 +144,7 @@
             <p class="text-xs text-gray-400 mt-1">
                 Current: <span class="text-gray-600" x-text="getCurrent() || '—'"></span>
             </p>
+            @endif
 
             {{-- Previous comments for this cell --}}
             <div x-show="comments.length > 0" class="mt-2">
@@ -189,9 +195,33 @@
     {{-- Panel footer --}}
     <div class="flex items-center gap-3 px-4 py-2 border-t border-gray-100">
         <button @click="save()" :disabled="saving" class="btn-primary btn-sm">
-            <span x-text="saving ? 'Saving…' : 'Save update'"></span>
+            <span x-text="saving ? 'Saving…' : '{{ auth()->user()->isManager() ? 'Add note' : 'Save update' }}'"></span>
         </button>
         <button @click="closeCell()" class="btn-secondary btn-sm">Cancel</button>
+
+        @if(auth()->user()->isSuperAdmin())
+        {{-- Hide / unhide this cell value --}}
+        <button @click="toggleHideCell(editWell, editCell)"
+                class="ml-auto flex items-center gap-1.5 btn-sm text-xs transition-colors"
+                :class="isCellHidden(editWell, editCell)
+                    ? 'text-amber-600 border border-amber-300 bg-amber-50 rounded px-2 py-1 hover:bg-amber-100'
+                    : 'text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50'"
+                :title="isCellHidden(editWell, editCell) ? 'Unhide: make value visible to all users' : 'Hide this cell value from non-admins and public links'">
+            <template x-if="isCellHidden(editWell, editCell)">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+            </template>
+            <template x-if="!isCellHidden(editWell, editCell)">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+            </template>
+            <span x-text="isCellHidden(editWell, editCell) ? 'Hidden' : 'Hide cell'"></span>
+        </button>
+        @endif
 
         <span x-show="saved" class="text-xs text-green-600 flex items-center gap-1 ml-1">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

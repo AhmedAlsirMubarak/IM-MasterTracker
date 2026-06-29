@@ -8,6 +8,7 @@ use App\Models\ProjectWell;
 use App\Models\CellComment;
 use App\Models\AuditLog;
 use App\Models\CustomCellValue;
+use App\Models\HiddenWellCell;
 use App\Services\AuditService;
 use App\Services\CountdownService;
 use App\Services\MasterColumnService;
@@ -126,21 +127,84 @@ class ProjectWellController extends Controller
         if ($type = $request->input('well_type')) {
             $query->where('well_type', $type);
         }
- 
+
+        // Well ID filter (dedicated filter field, separate from text search)
+        if ($wellId = $request->input('well_id_f')) {
+            $query->where('well_id', 'like', "%{$wellId}%");
+        }
+
+        // Date range filter (SAP earliest start / end date)
+        if ($from = $request->input('date_from')) {
+            $query->whereHas('sapTracking', fn ($q) => $q->whereDate('earliest_start_date', '>=', $from));
+        }
+        if ($to = $request->input('date_to')) {
+            $query->whereHas('sapTracking', fn ($q) => $q->whereDate('earliest_end_date', '<=', $to));
+        }
+
+        // E-Pad closeout status filter
+        if ($epad = $request->input('epad_status')) {
+            if ($epad === 'closed') {
+                $query->where('e_pad_closeout', 'Closed');
+            } else {
+                $query->where(fn ($q) => $q->whereNull('e_pad_closeout')
+                    ->orWhere('e_pad_closeout', '!=', 'Closed'));
+            }
+        }
+
+        // SAP status filter (via sap_tracking join)
+        if ($sapStatus = $request->input('sap_status')) {
+            $query->whereHas('sapTracking', fn ($q) => $q->where('sap_status', $sapStatus));
+        }
+
+        // Delayed commissioning: elapsed days > 90 AND e-pad not closed
+        if ($request->boolean('delayed_only')) {
+            $cutoff = now()->subDays(90)->toDateString();
+            $query->whereHas('sapTracking', fn ($q) => $q->whereDate('commissioning_date', '<=', $cutoff))
+                  ->where(fn ($q) => $q->whereNull('e_pad_closeout')
+                      ->orWhereRaw("LOWER(TRIM(COALESCE(e_pad_closeout,''))) != 'closed'"));
+        }
+
         $wells = $query->paginate($request->input('per_page', 50));
 
-        // Load custom cell values for all wells on this page in one query
-        $wellIds = $wells->pluck('id');
+        // Load custom cell values and hidden cells for all wells on this page
+        $wellIds      = $wells->pluck('id');
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
+
         $customByWell = CustomCellValue::whereIn('well_id', $wellIds)
             ->get()
             ->groupBy('well_id');
 
+        $hiddenByWell = HiddenWellCell::whereIn('well_id', $wellIds)
+            ->get()
+            ->groupBy('well_id')
+            ->map(fn ($rows) => $rows->map(fn ($r) => $r->source_table . '.' . $r->source_column)->values());
+
         // Attach computed fields and latest comment per column
-        $wells->getCollection()->transform(function ($well) use ($customByWell) {
+        $wells->getCollection()->transform(function ($well) use ($customByWell, $hiddenByWell, $isSuperAdmin) {
             $well->computed = $this->countdown->computeForWell($well);
             $well->custom   = $customByWell->get($well->id, collect())
                 ->pluck('value', 'source_column')
                 ->toArray();
+
+            $hidden = $hiddenByWell->get($well->id, collect())->all();
+            if ($isSuperAdmin) {
+                // Super admin sees all values but gets the list of hidden keys for UI indicators
+                $well->hidden_cells = $hidden;
+            } else {
+                // Non-admin: strip hidden values so they never reach the client
+                foreach ($hidden as $key) {
+                    [$table, $col] = explode('.', $key, 2);
+                    if ($table === 'sap_tracking' && $well->sapTracking) {
+                        $well->sapTracking->$col = null;
+                    } elseif ($table === 'dc_tracking' && $well->dcTracking) {
+                        $well->dcTracking->$col = null;
+                    } elseif ($table === 'project_wells') {
+                        $well->$col = null;
+                    } elseif ($table === 'custom') {
+                        unset($well->custom[$col]);
+                    }
+                }
+            }
 
             $well->cell_comments = $well->cellComments
                 ->groupBy(fn($c) => "{$c->source_table}.{$c->source_column}")
@@ -154,7 +218,7 @@ class ProjectWellController extends Controller
             return $well;
         });
  
-        $columns = $this->columnService->getPinnedColumns($project->id);
+        $columns = $this->columnService->getPinnedColumns($project->id, auth()->user()->isSuperAdmin());
  
         return response()->json([
             'wells'   => $wells,
@@ -205,6 +269,34 @@ class ProjectWellController extends Controller
         ]);
 
         $user = auth()->user();
+
+        // Manager role: comment-only, no value editing
+        if ($user->role === 'manager') {
+            if ($data['source_table'] === 'computed') {
+                return response()->json(['message' => 'Cannot comment on computed columns.'], 403);
+            }
+            if (!empty($data['comment'])) {
+                CellComment::create([
+                    'project_well_id' => $well->id,
+                    'source_table'    => $data['source_table'],
+                    'source_column'   => $data['source_column'],
+                    'comment_text'    => $data['comment'],
+                    'commented_by'    => auth()->id(),
+                ]);
+            }
+            $well->refresh()->load(['sapTracking.updatedBy:id,name', 'dcTracking.updatedBy:id,name', 'cellComments.author:id,name']);
+            $well->computed      = $this->countdown->computeForWell($well);
+            $well->custom        = CustomCellValue::where('well_id', $well->id)->get()->pluck('value', 'source_column')->toArray();
+            $well->cell_comments = $well->cellComments
+                ->groupBy(fn($c) => "{$c->source_table}.{$c->source_column}")
+                ->map(fn($group) => [
+                    'comment_text' => $group->first()->comment_text,
+                    'author'       => $group->first()->author ? ['name' => $group->first()->author->name] : null,
+                    'created_at'   => $group->first()->created_at,
+                ]);
+            unset($well->cellComments);
+            return response()->json(['well' => $well, 'message' => 'Comment saved.']);
+        }
 
         if (!$user->canEditSource($data['source_table'])) {
             return response()->json(['message' => 'You do not have permission to edit this column.'], 403);

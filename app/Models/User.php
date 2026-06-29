@@ -26,6 +26,7 @@ class User extends Authenticatable
     public function isSapAdmin(): bool    { return $this->role === 'sap_admin'; }
     public function isDc(): bool          { return $this->role === 'dc'; }
     public function isImLead(): bool      { return $this->role === 'im_lead'; }
+    public function isViewer(): bool      { return $this->role === 'viewer'; }
  
     public function hasRole(string|array $roles): bool
     {
@@ -35,7 +36,7 @@ class User extends Authenticatable
     public function canEditSource(string $sourceTable): bool
     {
         return match ($sourceTable) {
-            'project_wells' => $this->hasRole(['super_admin', 'manager']),
+            'project_wells' => $this->isSuperAdmin(),
             'sap_tracking'  => $this->hasRole(['super_admin', 'sap_admin']),
             'dc_tracking'   => $this->hasRole(['super_admin', 'dc']),
             'computed'      => false,

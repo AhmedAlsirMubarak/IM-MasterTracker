@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\ImportSession;
 use App\Models\ProjectWell;
 use App\Models\SapTracking;
@@ -352,10 +353,36 @@ class ImportService
                 'total_rows'     => $totalRows,
                 'error_log'      => implode("\n", $errors) ?: null,
             ]);
+
+            AuditLog::create([
+                'user_id'         => $session->uploaded_by,
+                'model_type'      => 'import_session',
+                'model_id'        => $session->id,
+                'project_well_id' => null,
+                'field_name'      => 'import',
+                'old_value'       => $session->original_filename,
+                'new_value'       => "{$processed} rows imported, {$skipped} skipped",
+                'ip_address'      => null,
+                'user_agent'      => null,
+                'created_at'      => now(),
+            ]);
         } catch (\Exception $e) {
             $session->update([
                 'status'    => 'failed',
                 'error_log' => $e->getMessage(),
+            ]);
+
+            AuditLog::create([
+                'user_id'         => $session->uploaded_by,
+                'model_type'      => 'import_session',
+                'model_id'        => $session->id,
+                'project_well_id' => null,
+                'field_name'      => 'import',
+                'old_value'       => $session->original_filename,
+                'new_value'       => 'Import failed: ' . $e->getMessage(),
+                'ip_address'      => null,
+                'user_agent'      => null,
+                'created_at'      => now(),
             ]);
         }
     }

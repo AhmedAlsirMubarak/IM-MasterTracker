@@ -22,7 +22,7 @@ class AuthWebController extends Controller
         }
 
         Auth::user()->update(['last_login_at' => now()]);
-        return redirect()->intended(route('projects.index'));
+        return redirect()->intended(route('contracts.index'));
     }
 
     public function logout(Request $request)

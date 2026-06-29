@@ -24,8 +24,14 @@ class AdminWebController extends Controller
 
     public function auditData(Project $project)
     {
+        $importIds = \App\Models\ImportSession::where('project_id', $project->id)->pluck('id');
+
         $logs = \App\Models\AuditLog::with(['user:id,name,role', 'projectWell:id,well_number,well_id'])
-            ->whereHas('projectWell', fn($q) => $q->where('project_id', $project->id))
+            ->where(function ($q) use ($project, $importIds) {
+                $q->whereHas('projectWell', fn($q2) => $q2->where('project_id', $project->id))
+                  ->orWhere(fn($q2) => $q2->where('model_type', 'import_session')
+                                          ->whereIn('model_id', $importIds));
+            })
             ->orderByDesc('created_at')
             ->paginate(200);
         return response()->json($logs);

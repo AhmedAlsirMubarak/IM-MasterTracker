@@ -126,6 +126,16 @@ class ColumnConfigController extends Controller
     }
 
     /**
+     * Toggle hidden status for any pinned column (super admin only).
+     */
+    public function toggleHidden(Project $project, MasterColumnConfig $config)
+    {
+        abort_if($config->project_id !== $project->id, 404);
+        $config->update(['is_hidden' => !$config->is_hidden]);
+        return response()->json(['is_hidden' => $config->is_hidden]);
+    }
+
+    /**
      * Delete a custom column and all its stored values.
      */
     public function destroyCustom(Project $project, MasterColumnConfig $config)

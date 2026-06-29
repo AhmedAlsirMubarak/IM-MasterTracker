@@ -46,9 +46,9 @@ window.sourceColor = src => ({
 
 window.kpiStatus = days => {
     if (days == null) return 'none'
-    if (days <= 30) return 'green'
-    if (days <= 60) return 'amber'
-    return 'red'
+    if (days <= 3)  return 'red'    // 3 days or less (including past due)
+    if (days <= 10) return 'amber'  // 4–10 days left
+    return 'green'                  // more than 10 days remaining
 }
 
 window.countdownStatus = (days, ePad) => {
@@ -81,35 +81,101 @@ window.debounce = (fn, ms = 300) => {
 
 // ── Alpine components ─────────────────────────────────────────────────────────
 
-Alpine.data('projectList', () => ({
+Alpine.data('contractList', () => ({
+    contracts:  [],
+    loading:    false,
+    showCreate: false,
+    showEdit:   false,
+    saving:     false,
+    error:      '',
+    editError:  '',
+    editId:     null,
+    form:     { name: '', contract_no: '', description: '' },
+    editForm: { name: '', contract_no: '', description: '', status: 'active' },
+
+    async init() {
+        this.loading = true
+        try {
+            const res      = await fetch('/contracts/list', { headers: getHeaders() })
+            this.contracts = await res.json()
+        } catch {}
+        this.loading = false
+    },
+
+    async create() {
+        this.saving = true; this.error = ''
+        try {
+            const res  = await fetch('/contracts', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(this.form) })
+            const data = await res.json()
+            if (!res.ok) {
+                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+            } else {
+                this.contracts.unshift(data)
+                this.showCreate = false
+                this.form = { name: '', contract_no: '', description: '' }
+            }
+        } catch { this.error = 'Network error.' }
+        this.saving = false
+    },
+
+    openEdit(contract) {
+        this.editId   = contract.id
+        this.editForm = { name: contract.name, contract_no: contract.contract_no || '', description: contract.description || '', status: contract.status || 'active' }
+        this.editError = ''
+        this.showEdit  = true
+    },
+
+    async update() {
+        this.saving = true; this.editError = ''
+        try {
+            const res  = await fetch(`/contracts/${this.editId}`, { method: 'PUT', headers: jsonHeaders(), body: JSON.stringify(this.editForm) })
+            const data = await res.json()
+            if (!res.ok) {
+                this.editError = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+            } else {
+                const idx = this.contracts.findIndex(c => c.id === this.editId)
+                if (idx !== -1) this.contracts[idx] = { ...this.contracts[idx], ...data }
+                this.showEdit = false
+            }
+        } catch { this.editError = 'Network error.' }
+        this.saving = false
+    },
+
+    async deleteContract(contract) {
+        if (!confirm(`Delete "${contract.name}"?\n\nThis will permanently remove the contract and ALL its projects and wells.`)) return
+        const res = await fetch(`/contracts/${contract.id}`, { method: 'DELETE', headers: jsonHeaders() })
+        if (res.ok) this.contracts = this.contracts.filter(c => c.id !== contract.id)
+    },
+}))
+
+Alpine.data('contractDetail', (contractId) => ({
     projects:   [],
     loading:    false,
     showCreate: false,
     saving:     false,
     error:      '',
-    form: { name: '', contract_no: '', description: '' },
+    form: { name: '', description: '' },
 
     async init() {
         this.loading = true
         try {
-            const res     = await fetch('/projects/list', { headers: getHeaders() })
+            const res     = await fetch(`/contracts/${contractId}/projects`, { headers: getHeaders() })
             this.projects = await res.json()
         } catch {}
         this.loading = false
     },
 
     async create() {
-        this.saving = true
-        this.error  = ''
+        this.saving = true; this.error = ''
         try {
-            const res  = await fetch('/projects', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(this.form) })
+            const res  = await fetch(`/contracts/${contractId}/projects`, { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(this.form) })
             const data = await res.json()
             if (!res.ok) {
                 this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
             } else {
                 this.projects.unshift(data)
                 this.showCreate = false
-                this.form = { name: '', contract_no: '', description: '' }
+                this.form = { name: '', description: '' }
             }
         } catch { this.error = 'Network error.' }
         this.saving = false
@@ -118,9 +184,7 @@ Alpine.data('projectList', () => ({
     async deleteProject(project) {
         if (!confirm(`Delete "${project.name}"? This will permanently remove the project and all its wells.`)) return
         const res = await fetch(`/projects/${project.id}`, { method: 'DELETE', headers: jsonHeaders() })
-        if (res.ok) {
-            this.projects = this.projects.filter(p => p.id !== project.id)
-        }
+        if (res.ok) this.projects = this.projects.filter(p => p.id !== project.id)
     },
 }))
 
@@ -334,6 +398,17 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
     departedWells:  [],
     departedCount:  0,
     loadingDeparted: false,
+    showShareModal:   false,
+    shareLink:        null,
+    shareLoading:     false,
+    shareCopied:      false,
+    showFilters:      false,
+    filterDateFrom:   '',
+    filterDateTo:     '',
+    filterWellId:     '',
+    filterEpadStatus: '',
+    filterSapStatus:  '',
+    filterDelayed:    false,
     availableYears: [],
     yearsReady:     false,
     page:           1,
@@ -370,10 +445,16 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
     async load() {
         this.loading = true
         const p = new URLSearchParams({ page: this.page })
-        if (this.filterYear)  p.set('year',         this.filterYear)
-        if (this.shiftedOnly) p.set('shifted_only', '1')
-        if (this.search)      p.set('search',       this.search)
-        if (this.filterType)  p.set('well_type',    this.filterType)
+        if (this.filterYear)      p.set('year',          this.filterYear)
+        if (this.shiftedOnly)     p.set('shifted_only',  '1')
+        if (this.search)          p.set('search',        this.search)
+        if (this.filterType)      p.set('well_type',     this.filterType)
+        if (this.filterDateFrom)  p.set('date_from',     this.filterDateFrom)
+        if (this.filterDateTo)    p.set('date_to',       this.filterDateTo)
+        if (this.filterWellId)    p.set('well_id_f',     this.filterWellId)
+        if (this.filterEpadStatus) p.set('epad_status',  this.filterEpadStatus)
+        if (this.filterSapStatus)  p.set('sap_status',   this.filterSapStatus)
+        if (this.filterDelayed)    p.set('delayed_only', '1')
         try {
             const res  = await fetch(`/projects/${projectId}/wells?${p}`, { headers: getHeaders() })
             const data = await res.json()
@@ -409,6 +490,17 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
             this.departedCount  = this.departedWells.length
         } catch {}
         this.loadingDeparted = false
+    },
+
+    get activeFilterCount() {
+        return [this.filterDateFrom, this.filterDateTo, this.filterWellId,
+                this.filterEpadStatus, this.filterSapStatus, this.filterDelayed].filter(Boolean).length
+    },
+
+    resetFilters() {
+        this.filterDateFrom = ''; this.filterDateTo = ''; this.filterWellId = ''
+        this.filterEpadStatus = ''; this.filterSapStatus = ''; this.filterDelayed = false
+        this.page = 1; this.load()
     },
 
     toggleShiftedOnly() {
@@ -450,10 +542,14 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
     canEdit(col, role, isSuperAdmin) {
         if (col.source_table === 'computed')       return false
         if (col.source_table === 'custom')         return isSuperAdmin
-        if (col.source_table === 'project_wells')  return isSuperAdmin || role === 'manager'
+        if (col.source_table === 'project_wells')  return isSuperAdmin
         if (col.source_table === 'sap_tracking')   return isSuperAdmin || role === 'sap_admin'
         if (col.source_table === 'dc_tracking')    return isSuperAdmin || role === 'dc'
         return false
+    },
+
+    canCommentOnly(col, role) {
+        return role === 'manager' && col.source_table !== 'computed'
     },
 
     getCellValue(well, col) {
@@ -504,6 +600,89 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
             this.load()
         } catch { this.addColError = 'Network error.' }
         this.addColSaving = false
+    },
+
+    async openShareModal() {
+        this.showShareModal = true
+        this.shareLoading   = true
+        try {
+            const res  = await fetch(`/projects/${projectId}/share`, { headers: getHeaders() })
+            this.shareLink = res.ok ? await res.json() : null
+        } catch {}
+        this.shareLoading = false
+    },
+
+    async generateShare() {
+        this.shareLoading = true
+        try {
+            const res  = await fetch(`/projects/${projectId}/share`, { method: 'POST', headers: jsonHeaders() })
+            if (res.ok) this.shareLink = await res.json()
+        } catch {}
+        this.shareLoading = false
+    },
+
+    copyShareLink(url) {
+        const tryClipboard = () => {
+            const el = document.createElement('textarea')
+            el.value = url
+            el.style.position = 'fixed'
+            el.style.opacity  = '0'
+            document.body.appendChild(el)
+            el.focus()
+            el.select()
+            document.execCommand('copy')
+            document.body.removeChild(el)
+        }
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).catch(tryClipboard)
+        } else {
+            tryClipboard()
+        }
+        this.shareCopied = true
+        setTimeout(() => { this.shareCopied = false }, 2000)
+    },
+
+    async revokeShare() {
+        if (!confirm('Revoke this link? Anyone with the current URL will lose access immediately.')) return
+        this.shareLoading = true
+        try {
+            const res = await fetch(`/projects/${projectId}/share`, { method: 'DELETE', headers: jsonHeaders() })
+            if (res.ok) this.shareLink = null
+        } catch {}
+        this.shareLoading = false
+    },
+
+    async toggleHideCell(well, col) {
+        const res = await fetch(`/projects/${projectId}/wells/${well.id}/hide-cell`, {
+            method: 'POST',
+            headers: jsonHeaders(),
+            body: JSON.stringify({ source_table: col.source_table, source_column: col.source_column }),
+        })
+        if (res.ok) {
+            const data = await res.json()
+            if (!well.hidden_cells) well.hidden_cells = []
+            const key = `${col.source_table}.${col.source_column}`
+            if (data.hidden) {
+                if (!well.hidden_cells.includes(key)) well.hidden_cells.push(key)
+            } else {
+                well.hidden_cells = well.hidden_cells.filter(k => k !== key)
+            }
+        }
+    },
+
+    isCellHidden(well, col) {
+        return Array.isArray(well.hidden_cells) &&
+               well.hidden_cells.includes(`${col.source_table}.${col.source_column}`)
+    },
+
+    async toggleHideColumn(col) {
+        const res = await fetch(`/projects/${projectId}/column-config/${col.id}/hidden`, {
+            method: 'PATCH', headers: jsonHeaders(),
+        })
+        if (res.ok) {
+            const data = await res.json()
+            col.is_hidden = data.is_hidden
+        }
     },
 
     async deleteColumn(col) {
@@ -980,7 +1159,30 @@ Alpine.data('importWizard', (projectId) => ({
     sheetSelected() {
         this.headers      = this.sheets[this.selectedSheet] || []
         this.fieldOptions = this.getFieldOptions(this.targetTable)
-        this.autoMap()
+        // Defer autoMap until Alpine has flushed the DOM — options must exist
+        // in <select> before x-model can sync the selected value correctly.
+        this.$nextTick(() => this.autoMap())
+    },
+
+    get mappedCount() {
+        return Object.values(this.mapping).filter(v => v).length
+    },
+
+    get hasIdentifier() {
+        const vals = Object.values(this.mapping)
+        return vals.includes('well_id') || vals.includes('well_number')
+    },
+
+    get duplicateMappings() {
+        const counts = {}
+        for (const v of Object.values(this.mapping)) {
+            if (v) counts[v] = (counts[v] || 0) + 1
+        }
+        return Object.keys(counts).filter(k => counts[k] > 1)
+    },
+
+    fieldLabel(value) {
+        return this.fieldOptions.find(f => f.value === value)?.label ?? value
     },
 
     async loadPreview() {
@@ -1039,6 +1241,271 @@ Alpine.data('importWizard', (projectId) => ({
                 setTimeout(() => this.pollStatus(), 2000)
             }
         } catch {}
+    },
+}))
+
+Alpine.data('importHistory', (projectId) => ({
+    sessions: [],
+    loading:  false,
+
+    async init() {
+        this.loading = true
+        try {
+            const res  = await fetch(`/projects/${projectId}/import-history`, { headers: getHeaders() })
+            const data = await res.json()
+            this.sessions = Array.isArray(data) ? data : (data.data ?? [])
+        } catch {}
+        this.loading = false
+    },
+
+    statusBadge(status) {
+        return {
+            completed:  'badge-green',
+            failed:     'badge-red',
+            processing: 'badge-amber',
+            pending:    'badge-blue',
+            mapping:    'badge-gray',
+        }[status] ?? 'badge-gray'
+    },
+
+    tableLabel(t) {
+        return { project_wells: 'Wells', sap_tracking: 'SAP', dc_tracking: 'DC', all: 'All' }[t] ?? t
+    },
+}))
+
+Alpine.data('sharedGrid', (token) => ({
+    token,
+    wells:      [],
+    columns:    [],
+    pagination: null,
+    loading:    false,
+    search:     '',
+    filterYear: String(new Date().getFullYear()),
+    filterType: '',
+    page:       1,
+    debouncedLoad: null,
+
+    init() {
+        this.debouncedLoad = window.debounce(() => { this.page = 1; this.load() }, 400)
+        this.load()
+    },
+
+    async load() {
+        this.loading = true
+        const p = new URLSearchParams({ page: this.page })
+        if (this.filterYear) p.set('year',      this.filterYear)
+        if (this.search)     p.set('search',    this.search)
+        if (this.filterType) p.set('well_type', this.filterType)
+        try {
+            const res  = await fetch(`/share/${this.token}/wells?${p}`)
+            const data = await res.json()
+            this.wells      = data.wells?.data ?? []
+            this.columns    = data.columns     ?? []
+            this.pagination = data.wells       ?? null
+        } catch {}
+        this.loading = false
+    },
+
+    sourceColor(src) {
+        return { project_wells:'#1D9E75', sap_tracking:'#BA7517', dc_tracking:'#D85A30', computed:'#639922', custom:'#7C3AED' }[src] ?? '#6B7280'
+    },
+
+    kpiStatus(days) {
+        if (days == null) return 'none'
+        if (days <= 3)  return 'red'
+        if (days <= 10) return 'amber'
+        return 'green'
+    },
+
+    badgeClass(status) {
+        return { red:'badge-red', amber:'badge-amber', green:'badge-green', overdue:'badge-red', warning:'badge-amber', ok:'badge-green', closed:'badge-gray', none:'badge-gray' }[status] ?? 'badge-gray'
+    },
+
+    getCellValue(well, col) {
+        if (col.source_table === 'sap_tracking') return well.sap_tracking?.[col.source_column] ?? ''
+        if (col.source_table === 'dc_tracking')  return well.dc_tracking?.[col.source_column]  ?? ''
+        if (col.source_table === 'computed')      return well.computed?.[col.source_column]     ?? ''
+        if (col.source_table === 'custom')        return well.custom?.[col.source_column]       ?? ''
+        return well[col.source_column] ?? ''
+    },
+}))
+
+Alpine.data('letterManager', (contractId, isSuperAdmin = false) => ({
+    letters:      [],
+    tab:          'outgoing',
+    loading:      false,
+    showForm:     false,
+    showThread:   false,
+    threadLetter: null,
+    editId:       null,
+    saving:       false,
+    error:        '',
+    refSearch:    '',
+    form: {
+        ctp_number: '', reference_no: '', submission_date: '',
+        description: '', direction: 'outgoing', reply_ref_no: '',
+        related_refs: [], required_action: false, status: 'open', remarks: '',
+    },
+
+    get filteredRefOptions() {
+        const q = this.refSearch.toLowerCase()
+        return this.letters.filter(l =>
+            l.reference_no !== this.form.reference_no &&
+            !(this.form.related_refs || []).includes(l.reference_no) &&
+            (!q || l.reference_no.toLowerCase().includes(q))
+        )
+    },
+
+    addRelatedRef(ref) {
+        if (!this.form.related_refs) this.form.related_refs = []
+        if (!this.form.related_refs.includes(ref)) this.form.related_refs.push(ref)
+        this.refSearch = ''
+    },
+
+    removeRelatedRef(ref) {
+        this.form.related_refs = (this.form.related_refs || []).filter(r => r !== ref)
+    },
+
+    openThread(letter) {
+        this.threadLetter = letter
+        this.showThread   = true
+    },
+
+    threadLetters(letter) {
+        if (!letter) return []
+        const visited = new Set()
+        const queue   = [letter.reference_no]
+        if (letter.reply_ref_no)  queue.push(letter.reply_ref_no)
+        ;(letter.related_refs || []).forEach(r => queue.push(r))
+
+        while (queue.length) {
+            const ref = queue.shift()
+            if (!ref || visited.has(ref)) continue
+            visited.add(ref)
+            this.letters.forEach(l => {
+                if (l.reference_no === ref) {
+                    if (l.reply_ref_no && !visited.has(l.reply_ref_no))   queue.push(l.reply_ref_no)
+                    ;(l.related_refs || []).filter(r => !visited.has(r)).forEach(r => queue.push(r))
+                }
+                if (l.reply_ref_no === ref && !visited.has(l.reference_no)) queue.push(l.reference_no)
+            })
+        }
+
+        return this.letters
+            .filter(l => visited.has(l.reference_no))
+            .sort((a, b) => new Date(a.submission_date) - new Date(b.submission_date))
+    },
+
+    threadCount(letter) {
+        return this.threadLetters(letter).length
+    },
+
+    outgoingRemarkPresets: [
+        'CH advised by mail to conduct a meeting',
+        'Engineering Manager - following up with PDO',
+        'Closed',
+        'Withdrawal - closed',
+    ],
+    incomingRemarkPresets: [
+        'Follow-up With HSE',
+        'No letter in Mirsal-Received',
+        'This NTF shall be implemented across all ongoing and future projects. ',
+        'Will discussed in Leadership meeting',
+        'Closed',
+        'Withdrawal - closed',
+    ],
+    get remarkPresets() {
+        return this.form.direction === 'incoming' ? this.incomingRemarkPresets : this.outgoingRemarkPresets
+    },
+    appendRemark(text) {
+        this.form.remarks = this.form.remarks
+            ? this.form.remarks.trimEnd() + '\n' + text
+            : text
+    },
+
+    get outgoing()     { return this.letters.filter(l => l.direction === 'outgoing') },
+    get incoming()     { return this.letters.filter(l => l.direction === 'incoming') },
+    get alertLetters() { return this.outgoing.filter(l => l.status === 'open' && l.days_elapsed >= 10) },
+
+    linkedIncoming(out) {
+        return this.incoming.find(l => l.reply_ref_no === out.reference_no) || null
+    },
+    linkedOutgoing(inc) {
+        return this.outgoing.find(l => l.reference_no === inc.reply_ref_no) || null
+    },
+
+    async init() {
+        this.loading = true
+        try {
+            const res    = await fetch(`/contracts/${contractId}/letters-data`, { headers: getHeaders() })
+            this.letters = await res.json()
+        } catch {}
+        this.loading = false
+    },
+
+    openCreate(direction = 'outgoing') {
+        this.editId   = null
+        this.error    = ''
+        this.refSearch = ''
+        this.form     = {
+            ctp_number: '', reference_no: '',
+            submission_date: new Date().toISOString().slice(0, 10),
+            description: '', direction, reply_ref_no: '',
+            related_refs: [], required_action: false, status: 'open', remarks: '',
+        }
+        this.showForm = true
+    },
+
+    openEdit(letter) {
+        this.editId    = letter.id
+        this.error     = ''
+        this.refSearch = ''
+        this.form      = {
+            ctp_number:      letter.ctp_number      || '',
+            reference_no:    letter.reference_no,
+            submission_date: letter.submission_date,
+            description:     letter.description     || '',
+            direction:       letter.direction,
+            reply_ref_no:    letter.reply_ref_no    || '',
+            related_refs:    letter.related_refs    ? [...letter.related_refs] : [],
+            required_action: letter.required_action,
+            status:          letter.status,
+            remarks:         letter.remarks         || '',
+        }
+        this.showForm = true
+    },
+
+    async save() {
+        this.saving = true; this.error = ''
+        const url    = this.editId ? `/contracts/${contractId}/letters/${this.editId}` : `/contracts/${contractId}/letters`
+        const method = this.editId ? 'PUT' : 'POST'
+        try {
+            const res  = await fetch(url, { method, headers: jsonHeaders(), body: JSON.stringify(this.form) })
+            const data = await res.json()
+            if (!res.ok) {
+                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+            } else {
+                if (this.editId) {
+                    const idx = this.letters.findIndex(l => l.id === this.editId)
+                    if (idx !== -1) this.letters[idx] = data
+                } else {
+                    this.letters.unshift(data)
+                }
+                this.showForm = false
+            }
+        } catch { this.error = 'Network error.' }
+        this.saving = false
+    },
+
+    async deleteLetter(letter) {
+        if (!confirm(`Delete letter "${letter.reference_no}"? This cannot be undone.`)) return
+        const res = await fetch(`/contracts/${contractId}/letters/${letter.id}`, { method: 'DELETE', headers: jsonHeaders() })
+        if (res.ok) this.letters = this.letters.filter(l => l.id !== letter.id)
+    },
+
+    fmtDate(d) {
+        if (!d) return '—'
+        return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     },
 }))
 

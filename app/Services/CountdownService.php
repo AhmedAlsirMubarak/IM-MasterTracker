@@ -8,42 +8,44 @@ use Carbon\Carbon;
 class CountdownService
 {
     /**
-     * SAP KPI: difference in days between EarliestStartDate and EarliestEndDate.
+     * SAP KPI: remaining days from today until EarliestEndDate.
+     * Positive = days still remaining. Negative = past due.
      */
-    public function computeSapKpi(?Carbon $startDate, ?Carbon $endDate): ?int
+    public function computeSapKpi(?Carbon $endDate): ?int
     {
-        if (!$startDate || !$endDate) return null;
-        return $startDate->diffInDays($endDate);
+        if (!$endDate) return null;
+        return (int) now()->startOfDay()->diffInDays($endDate->copy()->startOfDay(), false);
     }
- 
+
     public function sapKpiStatus(?int $kpi): string
     {
         if ($kpi === null) return 'none';
-        if ($kpi <= 30) return 'green';
-        if ($kpi <= 60) return 'amber';
-        return 'red';
+        if ($kpi <= 3)  return 'red';   // 3 days or less (including past due)
+        if ($kpi <= 10) return 'amber'; // 4–10 days left
+        return 'green';                 // more than 10 days remaining
     }
  
     /**
-     * Countdown: days elapsed since Hook up & Tie in Completed.
-     * Red  = over 90 days AND E-Pad not closed
-     * Amber = 75–90 days
-     * Green = under 75 days OR E-Pad is closed
+     * Countdown: days elapsed since Commissioning Date.
+     * Counting stops (closed) when E-Pad is closed.
+     * Red   = over 90 days elapsed
+     * Amber = 81–90 days elapsed (10 days left)
+     * Green = 80 days or fewer elapsed
      */
-    public function countdownDays(?Carbon $tieInDate): ?int
+    public function countdownDays(?Carbon $commissioningDate): ?int
     {
-        if (!$tieInDate) return null;
-        return (int) $tieInDate->diffInDays(now());
+        if (!$commissioningDate) return null;
+        return (int) $commissioningDate->diffInDays(now());
     }
- 
+
     public function countdownStatus(?int $days, ?string $ePadCloseout): string
     {
         if ($days === null) return 'none';
         $isClosed = strtolower(trim($ePadCloseout ?? '')) === 'closed';
-        if ($isClosed) return 'closed';   // GREEN even if over 90
-        if ($days > 90) return 'overdue'; // RED
-        if ($days > 75) return 'warning'; // AMBER
-        return 'ok';                       // GREEN
+        if ($isClosed) return 'closed';   // stopped — E-Pad closed
+        if ($days > 90) return 'overdue'; // RED  — over 90 days
+        if ($days > 80) return 'warning'; // AMBER — 10 days left
+        return 'ok';                      // GREEN
     }
  
     /**
@@ -53,8 +55,8 @@ class CountdownService
     {
         $sap = $well->sapTracking;
  
-        $kpi     = $this->computeSapKpi($sap?->earliest_start_date, $sap?->earliest_end_date);
-        $cdDays  = $this->countdownDays($sap?->hook_up_tie_in_completed);
+        $kpi     = $this->computeSapKpi($sap?->earliest_end_date);
+        $cdDays  = $this->countdownDays($sap?->commissioning_date);
         $cdStatus = $this->countdownStatus($cdDays, $well->e_pad_closeout);
  
         return [
