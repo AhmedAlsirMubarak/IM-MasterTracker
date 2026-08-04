@@ -111,4 +111,59 @@ class LetterController extends Controller
 
         return response()->json(['count' => $alerts->count(), 'letters' => $alerts]);
     }
+
+    public function export(Contract $contract)
+    {
+        $letters = $contract->letters()
+            ->with('createdBy:id,name')
+            ->orderByDesc('submission_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $headers = [
+            'Direction', 'CTP Number', 'Reference No', 'Submission Date', 'Description',
+            'Reply Ref No', 'Related Refs', 'Required Action', 'Status', 'Remarks',
+            'Days Elapsed', 'Created By',
+        ];
+
+        $rows = [$headers];
+
+        foreach ($letters as $l) {
+            $elapsed = (int) max(0, $l->submission_date->diffInDays(now(), false));
+
+            $rows[] = [
+                $l->direction === 'outgoing' ? 'Sent to PDO' : 'From PDO',
+                $l->ctp_number,
+                $l->reference_no,
+                $l->submission_date->toDateString(),
+                $l->description,
+                $l->reply_ref_no,
+                implode(', ', $l->related_refs ?? []),
+                $l->required_action ? 'Yes' : 'No',
+                $l->status,
+                $l->remarks,
+                $elapsed,
+                $l->createdBy?->name,
+            ];
+        }
+
+        $filename = 'letters-' . str($contract->name)->slug() . '-' . now()->format('Ymd') . '.csv';
+
+        return response($this->toCsv($rows), 200, [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    private function toCsv(array $rows): string
+    {
+        $fp = fopen('php://memory', 'r+');
+        foreach ($rows as $row) {
+            fputcsv($fp, array_map(fn($v) => $v ?? '', $row));
+        }
+        rewind($fp);
+        $csv = stream_get_contents($fp);
+        fclose($fp);
+        return $csv;
+    }
 }

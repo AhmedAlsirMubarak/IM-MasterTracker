@@ -10,6 +10,15 @@
             <p class="text-2xs text-gray-400">{{ $contract->name }}</p>
             <h1 class="text-base font-semibold text-gray-900 leading-tight">Letters & Correspondence</h1>
         </div>
+        <div class="relative w-56">
+            <input x-model="search" type="text" class="input-sm w-full pr-7"
+                   placeholder="Search description or ref…" autocomplete="off" />
+            <svg class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
+                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+        </div>
+
         <div class="flex-1"></div>
 
         {{-- Tabs --}}
@@ -39,6 +48,15 @@
                 </span>
             </button>
         </div>
+
+        <a href="/contracts/{{ $contract->id }}/letters/export"
+           class="btn-secondary btn-sm flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Export CSV
+        </a>
 
         <button @click="openCreate(tab)"
                 class="btn-primary btn-sm flex items-center gap-1.5">
@@ -267,7 +285,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                         </svg>
-                        <p x-text="tab === 'outgoing' ? 'No letters sent to PDO yet.' : 'No correspondence from PDO yet.'"></p>
+                        <p x-text="search.trim()
+                            ? 'No letters match your search.'
+                            : (tab === 'outgoing' ? 'No letters sent to PDO yet.' : 'No correspondence from PDO yet.')"></p>
                     </td>
                 </tr>
             </tbody>

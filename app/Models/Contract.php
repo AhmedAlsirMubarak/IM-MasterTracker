@@ -23,6 +23,11 @@ class Contract extends Model
         return $this->hasMany(ContractLetter::class);
     }
 
+    public function cvs()
+    {
+        return $this->hasMany(ContractCv::class);
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');

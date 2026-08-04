@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\ContractWebController;
 use App\Http\Controllers\Web\MasterWebController;
 use App\Http\Controllers\Admin\ContractController;
 use App\Http\Controllers\Admin\LetterController;
+use App\Http\Controllers\Admin\CvLetterController;
 use App\Http\Controllers\Web\SapWebController;
 use App\Http\Controllers\Web\DcWebController;
 use App\Http\Controllers\Web\AdminWebController;
@@ -50,6 +51,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/contracts/{contract}/letters',            [ContractWebController::class, 'letters'])->name('contracts.letters');
     Route::get('/contracts/{contract}/letters-data',       [LetterController::class, 'index']);
     Route::get('/contracts/{contract}/letters-alerts',     [LetterController::class, 'alerts']);
+    Route::get('/contracts/{contract}/letters/export',     [LetterController::class, 'export']);
+
+    Route::get('/contracts/{contract}/cvs',                [ContractWebController::class, 'cvs'])->name('contracts.cvs');
+    Route::get('/contracts/{contract}/cvs-data',            [CvLetterController::class, 'index']);
+    Route::get('/contracts/{contract}/cvs-alerts',          [CvLetterController::class, 'alerts']);
+    Route::get('/contracts/{contract}/cvs/export',          [CvLetterController::class, 'export']);
+    Route::post('/contracts/{contract}/cvs',                [CvLetterController::class, 'store']);
+    Route::put('/contracts/{contract}/cvs/{cv}',            [CvLetterController::class, 'update']);
+    Route::delete('/contracts/{contract}/cvs/{cv}',         [CvLetterController::class, 'destroy']);
     Route::post('/contracts/{contract}/letters',           [LetterController::class, 'store']);
     Route::put('/contracts/{contract}/letters/{letter}',   [LetterController::class, 'update']);
     Route::delete('/contracts/{contract}/letters/{letter}',[LetterController::class, 'destroy']);

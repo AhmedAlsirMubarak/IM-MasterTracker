@@ -1341,6 +1341,7 @@ Alpine.data('letterManager', (contractId, isSuperAdmin = false) => ({
     saving:       false,
     error:        '',
     refSearch:    '',
+    search:       '',
     form: {
         ctp_number: '', reference_no: '', submission_date: '',
         description: '', direction: 'outgoing', reply_ref_no: '',
@@ -1423,9 +1424,18 @@ Alpine.data('letterManager', (contractId, isSuperAdmin = false) => ({
             : text
     },
 
-    get outgoing()     { return this.letters.filter(l => l.direction === 'outgoing') },
-    get incoming()     { return this.letters.filter(l => l.direction === 'incoming') },
-    get alertLetters() { return this.outgoing.filter(l => l.status === 'open' && l.days_elapsed >= 10) },
+    matchesSearch(l) {
+        const q = this.search.trim().toLowerCase()
+        if (!q) return true
+        return (l.reference_no || '').toLowerCase().includes(q)
+            || (l.description  || '').toLowerCase().includes(q)
+    },
+
+    get outgoing()     { return this.letters.filter(l => l.direction === 'outgoing' && this.matchesSearch(l)) },
+    get incoming()     { return this.letters.filter(l => l.direction === 'incoming' && this.matchesSearch(l)) },
+    get alertLetters() {
+        return this.letters.filter(l => l.direction === 'outgoing' && l.status === 'open' && l.days_elapsed >= 10)
+    },
 
     linkedIncoming(out) {
         return this.incoming.find(l => l.reply_ref_no === out.reference_no) || null
@@ -1501,6 +1511,206 @@ Alpine.data('letterManager', (contractId, isSuperAdmin = false) => ({
         if (!confirm(`Delete letter "${letter.reference_no}"? This cannot be undone.`)) return
         const res = await fetch(`/contracts/${contractId}/letters/${letter.id}`, { method: 'DELETE', headers: jsonHeaders() })
         if (res.ok) this.letters = this.letters.filter(l => l.id !== letter.id)
+    },
+
+    fmtDate(d) {
+        if (!d) return '—'
+        return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    },
+}))
+
+Alpine.data('cvManager', (contractId, isSuperAdmin = false) => ({
+    cvs:        [],
+    tab:        'outgoing',
+    loading:    false,
+    showForm:   false,
+    showThread: false,
+    threadCv:   null,
+    editId:     null,
+    saving:     false,
+    error:      '',
+    refSearch:  '',
+    search:     '',
+    form: {
+        ctp_number: '', reference_no: '', submission_date: '',
+        description: '', direction: 'outgoing', reply_ref_no: '',
+        related_refs: [], person_name: '', position: '',
+        approval_status: 'pending', validity_value: null, validity_unit: 'months',
+        remarks: '', hde_remarks: '',
+    },
+
+    remarkPresets: [
+        'Awaiting PDO reply',
+        'Approved — renewal letter sent to PDO',
+        'Final approval — correspondence closed',
+        'Rejected — resubmission required',
+        'Closed',
+    ],
+    appendRemark(text) {
+        this.form.remarks = this.form.remarks
+            ? this.form.remarks.trimEnd() + '\n' + text
+            : text
+    },
+
+    get computedExpiry() {
+        if (!this.form.submission_date || !this.form.validity_value) return null
+        const d = new Date(this.form.submission_date + 'T00:00:00')
+        if (this.form.validity_unit === 'days') {
+            d.setDate(d.getDate() + Number(this.form.validity_value))
+        } else {
+            d.setMonth(d.getMonth() + Number(this.form.validity_value))
+        }
+        return d.toISOString().slice(0, 10)
+    },
+
+    get filteredRefOptions() {
+        const q = this.refSearch.toLowerCase()
+        return this.cvs.filter(c =>
+            c.reference_no !== this.form.reference_no &&
+            !(this.form.related_refs || []).includes(c.reference_no) &&
+            (!q || c.reference_no.toLowerCase().includes(q))
+        )
+    },
+
+    addRelatedRef(ref) {
+        if (!this.form.related_refs) this.form.related_refs = []
+        if (!this.form.related_refs.includes(ref)) this.form.related_refs.push(ref)
+        this.refSearch = ''
+    },
+
+    removeRelatedRef(ref) {
+        this.form.related_refs = (this.form.related_refs || []).filter(r => r !== ref)
+    },
+
+    openThread(cv) {
+        this.threadCv   = cv
+        this.showThread = true
+    },
+
+    threadCvs(cv) {
+        if (!cv) return []
+        const visited = new Set()
+        const queue   = [cv.reference_no]
+        if (cv.reply_ref_no) queue.push(cv.reply_ref_no)
+        ;(cv.related_refs || []).forEach(r => queue.push(r))
+
+        while (queue.length) {
+            const ref = queue.shift()
+            if (!ref || visited.has(ref)) continue
+            visited.add(ref)
+            this.cvs.forEach(c => {
+                if (c.reference_no === ref) {
+                    if (c.reply_ref_no && !visited.has(c.reply_ref_no)) queue.push(c.reply_ref_no)
+                    ;(c.related_refs || []).filter(r => !visited.has(r)).forEach(r => queue.push(r))
+                }
+                if (c.reply_ref_no === ref && !visited.has(c.reference_no)) queue.push(c.reference_no)
+            })
+        }
+
+        return this.cvs
+            .filter(c => visited.has(c.reference_no))
+            .sort((a, b) => new Date(a.submission_date) - new Date(b.submission_date))
+    },
+
+    threadCount(cv) {
+        return this.threadCvs(cv).length
+    },
+
+    matchesSearch(c) {
+        const q = this.search.trim().toLowerCase()
+        if (!q) return true
+        return (c.reference_no || '').toLowerCase().includes(q)
+            || (c.description  || '').toLowerCase().includes(q)
+            || (c.person_name  || '').toLowerCase().includes(q)
+    },
+
+    get outgoing() { return this.cvs.filter(c => c.direction === 'outgoing' && this.matchesSearch(c)) },
+    get incoming() { return this.cvs.filter(c => c.direction === 'incoming' && this.matchesSearch(c)) },
+    get alertCvs() {
+        return this.cvs.filter(c => c.approval_status === 'approved_temporary'
+            && (c.countdown_status === 'yellow' || c.countdown_status === 'red'))
+    },
+
+    linkedIncoming(out) {
+        return this.cvs.find(c => c.direction === 'incoming' && c.reply_ref_no === out.reference_no) || null
+    },
+    linkedOutgoing(inc) {
+        return this.cvs.find(c => c.direction === 'outgoing' && c.reference_no === inc.reply_ref_no) || null
+    },
+
+    async init() {
+        this.loading = true
+        try {
+            const res = await fetch(`/contracts/${contractId}/cvs-data`, { headers: getHeaders() })
+            this.cvs  = await res.json()
+        } catch {}
+        this.loading = false
+    },
+
+    openCreate(direction = 'outgoing') {
+        this.editId    = null
+        this.error     = ''
+        this.refSearch = ''
+        this.form      = {
+            ctp_number: '', reference_no: '',
+            submission_date: new Date().toISOString().slice(0, 10),
+            description: '', direction, reply_ref_no: '',
+            related_refs: [], person_name: '', position: '',
+            approval_status: 'pending', validity_value: null, validity_unit: 'months',
+            remarks: '', hde_remarks: '',
+        }
+        this.showForm = true
+    },
+
+    openEdit(cv) {
+        this.editId    = cv.id
+        this.error     = ''
+        this.refSearch = ''
+        this.form      = {
+            ctp_number:      cv.ctp_number      || '',
+            reference_no:    cv.reference_no,
+            submission_date: cv.submission_date,
+            description:     cv.description     || '',
+            direction:       cv.direction,
+            reply_ref_no:    cv.reply_ref_no    || '',
+            related_refs:    cv.related_refs    ? [...cv.related_refs] : [],
+            person_name:     cv.person_name,
+            position:        cv.position        || '',
+            approval_status: cv.approval_status,
+            validity_value:  cv.validity_value,
+            validity_unit:   cv.validity_unit   || 'months',
+            remarks:         cv.remarks         || '',
+            hde_remarks:     cv.hde_remarks      || '',
+        }
+        this.showForm = true
+    },
+
+    async save() {
+        this.saving = true; this.error = ''
+        const url    = this.editId ? `/contracts/${contractId}/cvs/${this.editId}` : `/contracts/${contractId}/cvs`
+        const method = this.editId ? 'PUT' : 'POST'
+        try {
+            const res  = await fetch(url, { method, headers: jsonHeaders(), body: JSON.stringify(this.form) })
+            const data = await res.json()
+            if (!res.ok) {
+                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+            } else {
+                if (this.editId) {
+                    const idx = this.cvs.findIndex(c => c.id === this.editId)
+                    if (idx !== -1) this.cvs[idx] = data
+                } else {
+                    this.cvs.unshift(data)
+                }
+                this.showForm = false
+            }
+        } catch { this.error = 'Network error.' }
+        this.saving = false
+    },
+
+    async deleteCv(cv) {
+        if (!confirm(`Delete CV letter "${cv.reference_no}" (${cv.person_name})? This cannot be undone.`)) return
+        const res = await fetch(`/contracts/${contractId}/cvs/${cv.id}`, { method: 'DELETE', headers: jsonHeaders() })
+        if (res.ok) this.cvs = this.cvs.filter(c => c.id !== cv.id)
     },
 
     fmtDate(d) {

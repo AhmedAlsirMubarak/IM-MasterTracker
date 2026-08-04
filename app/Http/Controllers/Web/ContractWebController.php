@@ -21,4 +21,9 @@ class ContractWebController extends Controller
     {
         return view('contracts.letters', compact('contract'));
     }
+
+    public function cvs(Contract $contract)
+    {
+        return view('contracts.cvs', compact('contract'));
+    }
 }

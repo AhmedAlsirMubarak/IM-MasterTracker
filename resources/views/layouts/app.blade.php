@@ -63,6 +63,20 @@
                       class="ml-auto text-2xs font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none"
                       x-text="alertCount"></span>
             </a>
+
+            <a href="{{ route('contracts.cvs', $contract) }}"
+               class="nav-link {{ request()->routeIs('contracts.cvs') ? 'active' : '' }}"
+               x-data="{ alertCount: 0 }"
+               x-init="fetch('/contracts/{{ $contract->id }}/cvs-alerts', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json()).then(d => alertCount = d.count).catch(() => {})">
+                <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+                CVs
+                <span x-show="alertCount > 0"
+                      class="ml-auto text-2xs font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white leading-none"
+                      x-text="alertCount"></span>
+            </a>
         @endif
 
         @if(isset($project))
