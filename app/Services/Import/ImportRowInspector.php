@@ -17,7 +17,9 @@ use Illuminate\Support\Facades\Log;
  *
  * Rules:
  *  - Rows are matched on Well ID. Well Number is only used when a row has no Well ID.
- *  - A Well ID that appears on several rows is one well: later rows update it (warning).
+ *  - A Well ID that appears on several rows keeps every row as its own well, like the
+ *    sheet (warning). The 1st, 2nd, … row with that ID matches the 1st, 2nd, … well
+ *    with that ID, so importing the same sheet again updates them instead of adding more.
  *  - A Well Number used by two different Well IDs keeps both wells (warning).
  *  - A cell that can't be read (bad date, Excel error such as #N/A, bad year) is left
  *    blank and the rest of the row is still imported (warning).
@@ -28,8 +30,14 @@ class ImportRowInspector
 {
     private const MAX_MESSAGES = 300;
 
-    /** match key => ProjectWell (existing wells, plus wells created during this run) */
+    /** match key => list of ProjectWell, oldest first (existing wells, plus wells created during this run) */
     public array $byWellId = [];
+
+    /** match key => how many rows with this Well ID have been read so far */
+    private array $idOccurrences = [];
+
+    /** Which occurrence of its Well ID the last inspected row was (0 = first). */
+    private int $lastOccurrence = 0;
 
     /** well-number key => ProjectWell, for rows that only have a Well Number */
     public array $byWellNumber = [];
@@ -42,8 +50,8 @@ class ImportRowInspector
 
     private array $warnedPairs   = [];
     private array $pendingNoId   = [];
-    private array $existingKeys  = [];
-    private array $touchedKeys   = ['new' => [], 'existing' => []];
+    private array $existingCount = [];
+    private array $touchedWells  = ['new' => [], 'existing' => []];
 
     /** True when the last inspected row repeated a Well ID seen earlier in the file. */
     public bool $lastWasRepeat = false;
@@ -56,20 +64,27 @@ class ImportRowInspector
     public int $rowsRead    = 0;
     public int $rowsApplied = 0;
     public int $rowsSkipped = 0;
-    public int $rowsMerged  = 0;
+    public int $rowsMerged  = 0; // kept for older sessions; repeats are no longer merged
+    public int $rowsDuplicate = 0;
 
     private array $labels;
     private array $dateFields;
 
-    public function __construct(int $projectId)
+    /**
+     * @param iterable<ProjectWell>|null $existingWells the project's wells, oldest first;
+     *        loaded from the database when not given
+     */
+    public function __construct(int $projectId, ?iterable $existingWells = null)
     {
         $this->labels     = self::fieldLabels();
         $this->dateFields = self::dateFields();
 
-        foreach (ProjectWell::withTrashed()->where('project_id', $projectId)->orderBy('id')->get() as $well) {
+        $existingWells ??= ProjectWell::withTrashed()->where('project_id', $projectId)->orderBy('id')->get();
+
+        foreach ($existingWells as $well) {
             $key = self::key($well->well_id);
-            $this->byWellId[$key] ??= $well;
-            $this->existingKeys[$key] = true;
+            $this->byWellId[$key][] = $well;
+            $this->existingCount[$key] = ($this->existingCount[$key] ?? 0) + 1;
 
             if (!blank($well->well_number)) {
                 $nKey = self::key($well->well_number);
@@ -103,7 +118,8 @@ class ImportRowInspector
 
         $this->flushNoId();
         $this->rowsRead++;
-        $this->lastWasRepeat = false;
+        $this->lastWasRepeat  = false;
+        $this->lastOccurrence = 0;
 
         $label = $this->rowLabel($rowNum, $id ?? $num);
         $data  = $this->cleanValues($data, $label);
@@ -111,14 +127,21 @@ class ImportRowInspector
         if (!blank($id)) {
             $key = self::key($id);
 
-            if (isset($this->seenIds[$key])) {
-                $this->rowsMerged++;
+            $occurrence = $this->idOccurrences[$key] ?? 0;
+            $this->idOccurrences[$key] = $occurrence + 1;
+            $this->lastOccurrence = $occurrence;
+
+            if ($occurrence > 0) {
+                $this->rowsDuplicate++;
                 $this->lastWasRepeat = true;
-                $this->warn("{$label}: this Well ID is also on row {$this->seenIds[$key]}. Both rows are combined into one well; values filled in on this row replace the earlier ones, blank cells don't.");
+                $this->warn("{$label}: this Well ID is also on row {$this->seenIds[$key]}. Kept as a separate well, as in the sheet, and marked as a duplicate ID — check which row is correct.");
             } else {
                 $this->seenIds[$key] = $rowNum;
-                $this->touchedKeys[isset($this->existingKeys[$key]) ? 'existing' : 'new'][$key] = true;
             }
+
+            // Each row is its own well: the n-th row with this ID is the n-th well with it
+            $isExisting = $occurrence < ($this->existingCount[$key] ?? 0);
+            $this->touchedWells[$isExisting ? 'existing' : 'new'][$key . '#' . $occurrence] = true;
 
             if (!blank($num)) {
                 $nKey  = self::key($num);
@@ -137,19 +160,22 @@ class ImportRowInspector
         return $data;
     }
 
-    /** Find the well a cleaned row belongs to (null = new well). */
+    /**
+     * Find the well the last inspected row belongs to (null = new well).
+     * A repeated Well ID matches the well in the same position (2nd row → 2nd well).
+     */
     public function findWell(array $data): ?ProjectWell
     {
         if (!blank($data['well_id'] ?? null)) {
-            return $this->byWellId[self::key($data['well_id'])] ?? null;
+            return $this->byWellId[self::key($data['well_id'])][$this->lastOccurrence] ?? null;
         }
         return $this->byWellNumber[self::key($data['well_number'])] ?? null;
     }
 
-    /** Remember a newly created well so later rows with the same ID update it. */
+    /** Remember a newly created well so the next row with its ID lines up after it. */
     public function remember(ProjectWell $well): void
     {
-        $this->byWellId[self::key($well->well_id)] = $well;
+        $this->byWellId[self::key($well->well_id)][] = $well;
         if (!blank($well->well_number)) {
             $this->byWellNumber[self::key($well->well_number)] ??= $well;
         }
@@ -179,8 +205,8 @@ class ImportRowInspector
     /** Identifier-less rows waiting since the last real row. */
     public function pendingNoIdCount(): int { return count($this->pendingNoId); }
 
-    public function createdCount(): int  { return count($this->touchedKeys['new']); }
-    public function updatedCount(): int  { return count($this->touchedKeys['existing']); }
+    public function createdCount(): int  { return count($this->touchedWells['new']); }
+    public function updatedCount(): int  { return count($this->touchedWells['existing']); }
 
     public function summary(): array
     {
@@ -189,6 +215,7 @@ class ImportRowInspector
             'new_wells'     => $this->createdCount(),
             'existing'      => $this->updatedCount(),
             'merged_rows'   => $this->rowsMerged,
+            'duplicate_rows'=> $this->rowsDuplicate,
             'skipped_rows'  => $this->rowsSkipped,
             'warning_count' => $this->warningCount,
             'error_count'   => $this->errorCount,
@@ -317,7 +344,7 @@ class ImportRowInspector
                 1366,
                 1292    => "the value for {$name} is not valid",
                 1048    => "{$name} cannot be empty",
-                1062    => 'this Well ID already exists in the project',
+                1062    => 'this well already exists in the project',
                 default => 'the database rejected the row',
             };
         }

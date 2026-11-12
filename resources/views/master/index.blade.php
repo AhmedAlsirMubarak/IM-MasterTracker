@@ -319,6 +319,10 @@
                                         @else
                                         <span x-text="getCellValue(well, col) || '—'"></span>
                                         @endif
+                                        {{-- Repeated Well ID (kept as separate wells, like the sheet) --}}
+                                        <span x-show="col.source_column === 'well_id' && well.duplicate_well_id"
+                                            class="badge badge-amber text-2xs whitespace-nowrap"
+                                            title="Another well in this project has the same Well ID — check which one is correct">Duplicate ID</span>
                                         {{-- Comment indicator --}}
                                         <svg x-show="getCellComment(well, col)"
                                             class="w-3 h-3 text-brand-400 shrink-0"

@@ -180,13 +180,16 @@ class ProjectWellController extends Controller
         $hiddenByWell = $this->hiddenCellsByWell($wellIds);
         $hiddenCols   = $isSuperAdmin ? [] : $this->hiddenColumnKeys($project->id);
 
-        $wells->getCollection()->transform(fn ($well) => $this->presentWell(
+        // Well IDs on this page that more than one well in the project shares (kept apart on import, like the sheet)
+        $duplicateIds = $this->duplicateWellIds($project->id, $wells->pluck('well_id'));
+
+        $wells->getCollection()->transform(fn ($well) => tap($this->presentWell(
             $well,
             $customByWell->get($well->id, collect())->pluck('value', 'source_column')->toArray(),
             $hiddenByWell->get($well->id, collect())->all(),
             $hiddenCols,
             $isSuperAdmin
-        ));
+        ), fn ($w) => $w->duplicate_well_id = isset($duplicateIds[mb_strtolower(trim((string) $w->well_id))])));
 
         $columns = $this->columnService->getPinnedColumns($project->id, auth()->user()->isSuperAdmin());
  
@@ -520,13 +523,34 @@ class ProjectWellController extends Controller
 
         $isSuperAdmin = auth()->user()->isSuperAdmin();
 
-        return $this->presentWell(
+        $well = $this->presentWell(
             $well,
             CustomCellValue::where('well_id', $well->id)->pluck('value', 'source_column')->toArray(),
             $this->hiddenCellsByWell(collect([$well->id]))->get($well->id, collect())->all(),
             $isSuperAdmin ? [] : $this->hiddenColumnKeys($well->project_id),
             $isSuperAdmin
         );
+        $well->duplicate_well_id = $this->duplicateWellIds($well->project_id, collect([$well->well_id])) !== [];
+
+        return $well;
+    }
+
+    /**
+     * Of the given Well IDs, the ones shared by more than one (non-deleted) well in
+     * the project, as lower-cased keys. Imports keep repeated sheet rows as separate wells.
+     */
+    private function duplicateWellIds(int $projectId, $wellIds): array
+    {
+        $ids = collect($wellIds)->filter(fn ($id) => !blank($id))->unique()->values();
+        if ($ids->isEmpty()) return [];
+
+        return ProjectWell::where('project_id', $projectId)
+            ->whereIn('well_id', $ids)
+            ->groupBy('well_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('well_id')
+            ->mapWithKeys(fn ($id) => [mb_strtolower(trim((string) $id)) => true])
+            ->all();
     }
 
     /**
