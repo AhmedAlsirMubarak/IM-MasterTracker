@@ -10,7 +10,7 @@ class ImportSession extends Model
         'project_id', 'uploaded_by', 'original_filename', 'stored_path',
         'sheet_name', 'target_table', 'status', 'column_mapping',
         'total_rows', 'processed_rows', 'skipped_rows', 'error_log',
-        'created_wells', 'updated_wells', 'merged_rows', 'warning_log',
+        'created_wells', 'updated_wells', 'merged_rows', 'duplicate_rows', 'warning_log',
     ];
  
     protected $casts = [

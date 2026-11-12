@@ -200,8 +200,8 @@
                 </div>
                 <div class="card-body space-y-3 text-sm">
                     <p class="text-slate-700" x-text="analysis ? `This will create ${plural(analysis.new_wells, 'new well')} and update ${plural(analysis.existing, 'existing well')}.` : ''"></p>
-                    <p x-show="analysis && analysis.merged_rows" class="text-slate-600"
-                       x-text="analysis ? `${plural(analysis.merged_rows, 'row')} ${analysis.merged_rows === 1 ? 'repeats' : 'repeat'} a Well ID from an earlier row and will be combined into that well.` : ''"></p>
+                    <p x-show="analysis && analysis.duplicate_rows" class="text-slate-600"
+                       x-text="analysis ? `${plural(analysis.duplicate_rows, 'row')} ${analysis.duplicate_rows === 1 ? 'repeats' : 'repeat'} a Well ID from an earlier row and will be kept as ${analysis.duplicate_rows === 1 ? 'a separate well' : 'separate wells'}, marked &quot;Duplicate ID&quot;.` : ''"></p>
 
                     <div x-show="analysis && analysis.error_count" class="p-3 rounded-lg border border-red-200 bg-red-50 text-red-800 text-xs">
                         <p class="font-semibold mb-1" x-text="analysis ? `${plural(analysis.error_count, 'row')} will not be imported` : ''"></p>

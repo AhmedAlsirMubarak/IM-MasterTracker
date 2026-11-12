@@ -241,11 +241,6 @@ class ImportService
                     return $inspector->pendingNoIdCount() >= 500 ? false : null;
                 }
 
-                // A repeated Well ID only adds what it has; its blank cells must not wipe the earlier row
-                if ($inspector->lastWasRepeat) {
-                    $rowData = array_filter($rowData, fn ($v) => $v !== null);
-                }
-
                 try {
                     $well = $inspector->findWell($rowData);
 
@@ -325,6 +320,7 @@ class ImportService
                 'created_wells'  => $inspector->createdCount(),
                 'updated_wells'  => $inspector->updatedCount(),
                 'merged_rows'    => $inspector->rowsMerged,
+                'duplicate_rows' => $inspector->rowsDuplicate,
                 'error_log'      => ImportRowInspector::joinMessages($inspector->errors, $inspector->errorCount),
                 'warning_log'    => ImportRowInspector::joinMessages($inspector->warnings, $inspector->warningCount),
             ]);

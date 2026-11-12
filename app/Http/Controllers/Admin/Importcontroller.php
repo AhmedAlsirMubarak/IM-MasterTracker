@@ -127,6 +127,7 @@ class ImportController extends Controller
             'created_wells'  => $session->created_wells,
             'updated_wells'  => $session->updated_wells,
             'merged_rows'    => $session->merged_rows,
+            'duplicate_rows' => $session->duplicate_rows,
             'error_log'      => $session->error_log,
             'warning_log'    => $session->warning_log,
         ]);

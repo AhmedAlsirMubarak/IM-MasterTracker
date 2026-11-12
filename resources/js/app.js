@@ -1311,6 +1311,7 @@ Alpine.data('importWizard', (projectId) => ({
         const parts = [`${plural(r.created_wells || 0, 'well')} created`, `${r.updated_wells || 0} updated`]
         let text = parts.join(', ') + ` from ${plural(r.total_rows || 0, 'row')}.`
         if (r.merged_rows) text += ` ${plural(r.merged_rows, 'row')} repeated an earlier Well ID and ${r.merged_rows === 1 ? 'was' : 'were'} combined into that well.`
+        if (r.duplicate_rows) text += ` ${plural(r.duplicate_rows, 'row')} repeated an earlier Well ID and ${r.duplicate_rows === 1 ? 'was' : 'were'} kept as ${r.duplicate_rows === 1 ? 'a separate well' : 'separate wells'}, marked "Duplicate ID".`
         if (r.skipped_rows) text += ` ${plural(r.skipped_rows, 'row')} could not be imported.`
         return text
     },
