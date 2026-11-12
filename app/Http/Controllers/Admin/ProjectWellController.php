@@ -9,11 +9,14 @@ use App\Models\CellComment;
 use App\Models\AuditLog;
 use App\Models\CustomCellValue;
 use App\Models\HiddenWellCell;
+use App\Models\MasterColumnConfig;
 use App\Services\AuditService;
 use App\Services\CountdownService;
 use App\Services\MasterColumnService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use App\Models\SapTracking;
  
 class ProjectWellController extends Controller
 {
@@ -164,9 +167,9 @@ class ProjectWellController extends Controller
                       ->orWhereRaw("LOWER(TRIM(COALESCE(e_pad_closeout,''))) != 'closed'"));
         }
 
-        $wells = $query->paginate($request->input('per_page', 50));
+        $wells = $query->paginate($this->perPage($request));
 
-        // Load custom cell values and hidden cells for all wells on this page
+        // Load custom cell values and hidden cells for all wells on this page (2 queries, no N+1)
         $wellIds      = $wells->pluck('id');
         $isSuperAdmin = auth()->user()->isSuperAdmin();
 
@@ -174,50 +177,17 @@ class ProjectWellController extends Controller
             ->get()
             ->groupBy('well_id');
 
-        $hiddenByWell = HiddenWellCell::whereIn('well_id', $wellIds)
-            ->get()
-            ->groupBy('well_id')
-            ->map(fn ($rows) => $rows->map(fn ($r) => $r->source_table . '.' . $r->source_column)->values());
+        $hiddenByWell = $this->hiddenCellsByWell($wellIds);
+        $hiddenCols   = $isSuperAdmin ? [] : $this->hiddenColumnKeys($project->id);
 
-        // Attach computed fields and latest comment per column
-        $wells->getCollection()->transform(function ($well) use ($customByWell, $hiddenByWell, $isSuperAdmin) {
-            $well->computed = $this->countdown->computeForWell($well);
-            $well->custom   = $customByWell->get($well->id, collect())
-                ->pluck('value', 'source_column')
-                ->toArray();
+        $wells->getCollection()->transform(fn ($well) => $this->presentWell(
+            $well,
+            $customByWell->get($well->id, collect())->pluck('value', 'source_column')->toArray(),
+            $hiddenByWell->get($well->id, collect())->all(),
+            $hiddenCols,
+            $isSuperAdmin
+        ));
 
-            $hidden = $hiddenByWell->get($well->id, collect())->all();
-            if ($isSuperAdmin) {
-                // Super admin sees all values but gets the list of hidden keys for UI indicators
-                $well->hidden_cells = $hidden;
-            } else {
-                // Non-admin: strip hidden values so they never reach the client
-                foreach ($hidden as $key) {
-                    [$table, $col] = explode('.', $key, 2);
-                    if ($table === 'sap_tracking' && $well->sapTracking) {
-                        $well->sapTracking->$col = null;
-                    } elseif ($table === 'dc_tracking' && $well->dcTracking) {
-                        $well->dcTracking->$col = null;
-                    } elseif ($table === 'project_wells') {
-                        $well->$col = null;
-                    } elseif ($table === 'custom') {
-                        unset($well->custom[$col]);
-                    }
-                }
-            }
-
-            $well->cell_comments = $well->cellComments
-                ->groupBy(fn($c) => "{$c->source_table}.{$c->source_column}")
-                ->map(fn($group) => [
-                    'comment_text' => $group->first()->comment_text,
-                    'author'       => $group->first()->author ? ['name' => $group->first()->author->name] : null,
-                    'created_at'   => $group->first()->created_at,
-                ]);
-
-            unset($well->cellComments);
-            return $well;
-        });
- 
         $columns = $this->columnService->getPinnedColumns($project->id, auth()->user()->isSuperAdmin());
  
         return response()->json([
@@ -228,12 +198,16 @@ class ProjectWellController extends Controller
  
     public function store(Request $request, Project $project)
     {
- 
         $data = $request->validate([
             'contract_no'      => 'nullable|string',
             'scope'            => 'nullable|string',
             'hua_date'         => 'nullable|date',
-            'well_id'          => 'required|string',
+            'well_id'          => [
+                'required', 'string', 'max:255',
+                Rule::unique('project_wells', 'well_id')
+                    ->where('project_id', $project->id)
+                    ->whereNull('deleted_at'),
+            ],
             'well_number'      => 'nullable|string',
             'well_type'        => 'nullable|string',
             'well_field'       => 'nullable|string',
@@ -241,21 +215,41 @@ class ProjectWellController extends Controller
             'ramz_id'          => 'nullable|string',
             'year'             => 'nullable|integer|digits:4',
             'responsible_asset'=> 'nullable|string',
+        ], [
+            'well_id.unique' => 'This Well ID already exists in this project.',
         ]);
- 
-        $well = ProjectWell::create(array_merge($data, [
-            'project_id' => $project->id,
-            'created_by' => auth()->id(),
-            'updated_by' => auth()->id(),
-        ]));
- 
-        // Create empty SAP and DC tracking rows
-        $well->sapTracking()->create(['project_well_id' => $well->id]);
-        $well->dcTracking()->create(['project_well_id' => $well->id]);
- 
+
+        $well = DB::transaction(function () use ($data, $project) {
+            $attributes = array_merge($data, [
+                'project_id' => $project->id,
+                'updated_by' => auth()->id(),
+            ]);
+
+            // The (project_id, well_id) unique index also covers soft-deleted rows,
+            // so a previously deleted well with the same ID is brought back instead.
+            $trashed = ProjectWell::onlyTrashed()
+                ->where('project_id', $project->id)
+                ->where('well_id', $data['well_id'])
+                ->first();
+
+            if ($trashed) {
+                $trashed->restore();
+                $trashed->update($attributes);
+                $well = $trashed;
+            } else {
+                $well = ProjectWell::create(array_merge($attributes, ['created_by' => auth()->id()]));
+            }
+
+            // Make sure the SAP and DC tracking rows exist
+            if (!$well->sapTracking()->exists()) $well->sapTracking()->create(['project_well_id' => $well->id]);
+            if (!$well->dcTracking()->exists())  $well->dcTracking()->create(['project_well_id' => $well->id]);
+
+            return $well;
+        });
+
         return response()->json($well->load(['sapTracking', 'dcTracking']), 201);
     }
- 
+
     /**
      * Inline cell update — any user can update their authorized columns.
      */
@@ -269,6 +263,11 @@ class ProjectWellController extends Controller
         ]);
 
         $user = auth()->user();
+
+        // Only real, configured columns may be written — never ids, foreign keys or audit fields
+        if (!in_array($data['source_column'], $this->editableColumns($data['source_table'], $well->project_id), true)) {
+            return response()->json(['message' => 'Unknown column.'], 422);
+        }
 
         // Manager role: comment-only, no value editing
         if ($user->role === 'manager') {
@@ -284,17 +283,7 @@ class ProjectWellController extends Controller
                     'commented_by'    => auth()->id(),
                 ]);
             }
-            $well->refresh()->load(['sapTracking.updatedBy:id,name', 'dcTracking.updatedBy:id,name', 'cellComments.author:id,name']);
-            $well->computed      = $this->countdown->computeForWell($well);
-            $well->custom        = CustomCellValue::where('well_id', $well->id)->get()->pluck('value', 'source_column')->toArray();
-            $well->cell_comments = $well->cellComments
-                ->groupBy(fn($c) => "{$c->source_table}.{$c->source_column}")
-                ->map(fn($group) => [
-                    'comment_text' => $group->first()->comment_text,
-                    'author'       => $group->first()->author ? ['name' => $group->first()->author->name] : null,
-                    'created_at'   => $group->first()->created_at,
-                ]);
-            unset($well->cellComments);
+            $well = $this->freshWell($well);
             return response()->json(['well' => $well, 'message' => 'Comment saved.']);
         }
 
@@ -307,6 +296,32 @@ class ProjectWellController extends Controller
             && in_array($data['source_column'], ProjectWell::$fixedColumns)
             && !$user->canEditFixedColumns()) {
             return response()->json(['message' => 'Only Super Admin can edit fixed columns.'], 403);
+        }
+
+        // Changing a Well ID must not collide with another well in the same project
+        if ($data['source_table'] === 'project_wells' && $data['source_column'] === 'well_id') {
+            if (blank($data['value'])) {
+                return response()->json(['message' => 'Well ID is required.', 'errors' => ['value' => ['Well ID is required.']]], 422);
+            }
+            $taken = ProjectWell::withTrashed()
+                ->where('project_id', $well->project_id)
+                ->where('well_id', $data['value'])
+                ->where('id', '!=', $well->id)
+                ->exists();
+            if ($taken) {
+                return response()->json(['message' => 'This Well ID already exists in this project.', 'errors' => ['value' => ['This Well ID already exists in this project.']]], 422);
+            }
+        }
+
+        // SAP end date may not be before the start date
+        if ($data['source_table'] === 'sap_tracking'
+            && in_array($data['source_column'], ['earliest_start_date', 'earliest_end_date'], true)) {
+            $sap   = $well->sapTracking;
+            $start = $data['source_column'] === 'earliest_start_date' ? $data['value'] : $sap?->earliest_start_date;
+            $end   = $data['source_column'] === 'earliest_end_date'   ? $data['value'] : $sap?->earliest_end_date;
+            if ($msg = SapTracking::dateRangeError($start, $end)) {
+                return response()->json(['message' => $msg, 'errors' => ['value' => [$msg]]], 422);
+            }
         }
 
         $oldValue = null;
@@ -360,11 +375,13 @@ class ProjectWellController extends Controller
                 })(),
             };
 
-            // Log audit
-            $this->audit->log(
-                $data['source_table'], $well->id,
-                $data['source_column'], $oldValue, $data['value'], $well->id
-            );
+            // Log audit (SAP/DC edits are logged by SapTrackingObserver / DcTrackingObserver)
+            if (in_array($data['source_table'], ['project_wells', 'custom'], true)) {
+                $this->audit->log(
+                    $data['source_table'], $well->id,
+                    $data['source_column'], $oldValue, $data['value'], $well->id
+                );
+            }
 
             // Save comment if provided
             if (!empty($data['comment'])) {
@@ -379,19 +396,7 @@ class ProjectWellController extends Controller
         });
 
         // Return updated well with computed fields and latest comment per column
-        $well->refresh()->load(['sapTracking.updatedBy:id,name', 'dcTracking.updatedBy:id,name', 'cellComments.author:id,name']);
-        $well->computed = $this->countdown->computeForWell($well);
-        $well->custom   = CustomCellValue::where('well_id', $well->id)
-            ->get()->pluck('value', 'source_column')->toArray();
-
-        $well->cell_comments = $well->cellComments
-            ->groupBy(fn($c) => "{$c->source_table}.{$c->source_column}")
-            ->map(fn($group) => [
-                'comment_text' => $group->first()->comment_text,
-                'author'       => $group->first()->author ? ['name' => $group->first()->author->name] : null,
-                'created_at'   => $group->first()->created_at,
-            ]);
-        unset($well->cellComments);
+        $well = $this->freshWell($well);
 
         return response()->json(['well' => $well, 'message' => 'Updated successfully.']);
     }
@@ -401,7 +406,10 @@ class ProjectWellController extends Controller
      */
     public function auditLog(ProjectWell $well)
     {
+        $hiddenFields = $this->hiddenFieldNamesFor($well);
+
         $logs = AuditLog::where('project_well_id', $well->id)
+            ->when($hiddenFields, fn ($q) => $q->whereNotIn('field_name', $hiddenFields))
             ->with('user:id,name,role')
             ->orderByDesc('created_at')
             ->paginate(30);
@@ -420,7 +428,13 @@ class ProjectWellController extends Controller
             ->with('author:id,name,role')
             ->orderByDesc('created_at')
             ->get();
- 
+
+        if (!auth()->user()->isSuperAdmin()) {
+            $hidden   = array_merge($this->hiddenCellsByWell(collect([$well->id]))->get($well->id, collect())->all(),
+                                    $this->hiddenColumnKeys($well->project_id));
+            $comments = $comments->reject(fn ($c) => in_array("{$c->source_table}.{$c->source_column}", $hidden, true))->values();
+        }
+
         return response()->json($comments);
     }
  
@@ -442,5 +456,126 @@ class ProjectWellController extends Controller
             ->delete();
 
         return response()->json(['message' => "$count well(s) deleted.", 'count' => $count]);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /** Page size from the request, kept between 1 and 200. */
+    private function perPage(Request $request): int
+    {
+        return max(1, min(200, (int) $request->input('per_page', 50)));
+    }
+
+    /** Columns a cell edit may target for the given source table. */
+    private function editableColumns(string $sourceTable, int $projectId): array
+    {
+        if ($sourceTable === 'custom') {
+            return MasterColumnConfig::where('project_id', $projectId)
+                ->where('source_table', 'custom')
+                ->pluck('source_column')
+                ->all();
+        }
+
+        return array_column($this->columnService->availableColumns()[$sourceTable] ?? [], 'column');
+    }
+
+    /** "table.column" keys of per-cell hidden values, grouped by well id. */
+    private function hiddenCellsByWell($wellIds)
+    {
+        return HiddenWellCell::whereIn('well_id', $wellIds)
+            ->get(['well_id', 'source_table', 'source_column'])
+            ->groupBy('well_id')
+            ->map(fn ($rows) => $rows->map(fn ($r) => $r->source_table . '.' . $r->source_column)->values());
+    }
+
+    /** "table.column" keys of whole columns the super admin has hidden for this project. */
+    private function hiddenColumnKeys(int $projectId): array
+    {
+        return MasterColumnConfig::where('project_id', $projectId)
+            ->where('is_hidden', true)
+            ->get(['source_table', 'source_column'])
+            ->map(fn ($c) => $c->source_table . '.' . $c->source_column)
+            ->all();
+    }
+
+    /** Field names whose audit history a non-admin must not see for this well. */
+    private function hiddenFieldNamesFor(ProjectWell $well): array
+    {
+        if (auth()->user()->isSuperAdmin()) {
+            return [];
+        }
+
+        $keys = array_merge(
+            $this->hiddenCellsByWell(collect([$well->id]))->get($well->id, collect())->all(),
+            $this->hiddenColumnKeys($well->project_id)
+        );
+
+        return array_values(array_unique(array_map(fn ($k) => explode('.', $k, 2)[1] ?? $k, $keys)));
+    }
+
+    /** Reload a well with everything the grid needs, shaped for the current user. */
+    private function freshWell(ProjectWell $well): ProjectWell
+    {
+        $well->refresh()->load(['sapTracking.updatedBy:id,name', 'dcTracking.updatedBy:id,name', 'cellComments.author:id,name']);
+
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
+
+        return $this->presentWell(
+            $well,
+            CustomCellValue::where('well_id', $well->id)->pluck('value', 'source_column')->toArray(),
+            $this->hiddenCellsByWell(collect([$well->id]))->get($well->id, collect())->all(),
+            $isSuperAdmin ? [] : $this->hiddenColumnKeys($well->project_id),
+            $isSuperAdmin
+        );
+    }
+
+    /**
+     * Attach computed fields, custom values and the latest comment per cell.
+     * For non-admins, values of hidden cells and hidden columns are removed
+     * so they never reach the browser.
+     */
+    private function presentWell(ProjectWell $well, array $custom, array $hiddenCells, array $hiddenCols, bool $isSuperAdmin): ProjectWell
+    {
+        $well->computed = $this->countdown->computeForWell($well);
+        $well->custom   = $custom;
+
+        if ($isSuperAdmin) {
+            // Super admin sees all values but gets the list of hidden keys for UI indicators
+            $well->hidden_cells = $hiddenCells;
+            $hiddenKeys = [];
+        } else {
+            $hiddenKeys = array_values(array_unique(array_merge($hiddenCells, $hiddenCols)));
+            $computed   = $well->computed;
+            $customVals = $well->custom;
+
+            foreach ($hiddenKeys as $key) {
+                [$table, $col] = array_pad(explode('.', $key, 2), 2, null);
+                if ($col === null) continue;
+
+                match ($table) {
+                    'sap_tracking'  => $well->sapTracking?->setAttribute($col, null),
+                    'dc_tracking'   => $well->dcTracking?->setAttribute($col, null),
+                    'project_wells' => $well->setAttribute($col, null),
+                    'custom'        => (function () use (&$customVals, $col) { unset($customVals[$col]); })(),
+                    'computed'      => (function () use (&$computed, $col) { unset($computed[$col]); })(),
+                    default         => null,
+                };
+            }
+
+            $well->computed = $computed;
+            $well->custom   = $customVals;
+        }
+
+        $well->cell_comments = $well->cellComments
+            ->reject(fn ($c) => in_array("{$c->source_table}.{$c->source_column}", $hiddenKeys, true))
+            ->groupBy(fn ($c) => "{$c->source_table}.{$c->source_column}")
+            ->map(fn ($group) => [
+                'comment_text' => $group->first()->comment_text,
+                'author'       => $group->first()->author ? ['name' => $group->first()->author->name] : null,
+                'created_at'   => $group->first()->created_at,
+            ]);
+
+        unset($well->cellComments);
+        return $well;
     }
 }

@@ -2,7 +2,7 @@
 <div x-show="showShareModal" x-cloak class="modal-backdrop" @click.self="showShareModal = false">
     <div class="modal" style="max-width:480px" @click.stop>
         <div class="card-header">
-            <h2 class="font-semibold text-gray-900">Share this project</h2>
+            <h2 class="font-semibold text-slate-900">Share this project</h2>
             <button @click="showShareModal = false" class="ml-auto btn-ghost btn-sm">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -12,7 +12,7 @@
         <div class="card-body space-y-4">
 
             {{-- Loading --}}
-            <div x-show="shareLoading" class="flex items-center gap-2 text-sm text-gray-500 py-2">
+            <div x-show="shareLoading" class="flex items-center gap-2 text-sm text-slate-500 py-2">
                 <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -23,7 +23,7 @@
             {{-- No active link --}}
             <template x-if="!shareLoading && !shareLink">
                 <div class="text-center py-4 space-y-3">
-                    <div class="text-gray-400 text-sm">No active share link for this project.</div>
+                    <div class="text-slate-400 text-sm">No active share link for this project.</div>
                     <button @click="generateShare()" class="btn-primary">
                         <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -37,7 +37,7 @@
             {{-- Active link --}}
             <template x-if="!shareLoading && shareLink">
                 <div class="space-y-3">
-                    <div class="rounded-lg bg-gray-50 border border-gray-200 p-3 space-y-2">
+                    <div class="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2">
                         <div class="flex items-center gap-2">
                             <input type="text" :value="shareLink.url" readonly
                                    class="input text-xs flex-1 bg-white font-mono" />
@@ -58,15 +58,15 @@
                                 <span x-text="shareCopied ? 'Copied!' : 'Copy'"></span>
                             </button>
                         </div>
-                        <p class="text-2xs text-gray-500">
+                        <p class="text-2xs text-slate-500">
                             Expires:
-                            <span class="font-medium text-gray-700"
+                            <span class="font-medium text-slate-700"
                                   x-text="shareLink.expires_at ? new Date(shareLink.expires_at).toLocaleDateString() : '—'"></span>
                             <span x-show="shareLink.expired" class="ml-1 text-red-500 font-medium">(expired)</span>
                         </p>
                     </div>
 
-                    <div class="text-xs text-gray-500 space-y-1">
+                    <div class="text-xs text-slate-500 space-y-1">
                         <p>
                             <svg class="w-3.5 h-3.5 inline mr-1 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
@@ -80,14 +80,14 @@
                             Hidden columns and hidden cell values are automatically excluded.
                         </p>
                         <p>
-                            <svg class="w-3.5 h-3.5 inline mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="w-3.5 h-3.5 inline mr-1 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                             </svg>
                             Read-only — no editing possible via shared link.
                         </p>
                     </div>
 
-                    <div class="flex gap-2 pt-1 border-t border-gray-100">
+                    <div class="flex gap-2 pt-1 border-t border-slate-100">
                         <button @click="generateShare()" class="btn-secondary btn-sm flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

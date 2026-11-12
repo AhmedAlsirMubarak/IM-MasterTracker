@@ -3,11 +3,11 @@
      class="flex flex-col flex-1 min-h-0">
 
     {{-- Panel header --}}
-    <div class="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100">
+    <div class="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100">
         <div class="min-w-0">
-            <p class="text-xs font-semibold text-gray-900"
+            <p class="text-xs font-semibold text-slate-900"
                x-text="editCell?.display_label + ' — Well ' + (editWell?.well_number || '')"></p>
-            <p class="text-xs text-gray-400"
+            <p class="text-xs text-slate-400"
                x-text="{ project_wells:'Fixed columns', sap_tracking:'SAP Tracking', dc_tracking:'DC Tracking' }[editCell?.source_table] || ''"></p>
         </div>
         <span class="ml-auto text-xs font-semibold px-2 py-0.5 rounded"
@@ -28,7 +28,7 @@
             <label class="label" x-text="editCell?.display_label"></label>
             @if(auth()->user()->isManager())
             {{-- Manager: read-only value display, comment only --}}
-            <p class="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 min-h-9" x-text="getCurrent() || '—'"></p>
+            <p class="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 min-h-9" x-text="getCurrent() || '—'"></p>
             <p class="text-xs text-amber-600 mt-1">View only — add a note below</p>
             @else
 
@@ -44,8 +44,8 @@
                         <button @click="value = opt.option_value"
                             class="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs text-left border transition-colors"
                             :class="value === opt.option_value
-                                ? 'bg-blue-50 border-blue-300 text-blue-800 font-medium'
-                                : 'border-gray-200 hover:bg-gray-50 text-gray-700'">
+                                ? 'bg-brand-50 border-brand-300 text-brand-800 font-medium'
+                                : 'border-slate-200 hover:bg-slate-50 text-slate-700'">
                             <span class="w-2 h-2 rounded-full shrink-0"
                                   :style="`background:${opt.option_color}`"></span>
                             <span x-text="opt.option_label"></span>
@@ -87,7 +87,7 @@
             <template x-if="editCell?.source_column === 'well_field'">
                 <select x-model="value" class="select text-sm">
                     <option value="">— Select —</option>
-                    @foreach(['AFAR','AL HUSAIN EAST','DAFIQ','DHRUMA','DHULAIMA','DHULAIMA WEST','LEKHWAIR','LEKHWAIR AN','LEKHWAIR AS','LEKHWAIR EAST','LEKHWAIR INTRA','LEKHWAIR - AN','LEKHWAIR - AS','LEKHWAIR - CD','MALAAN','MALAAN WEST','SAYYAH','SAYYAH - NORTH','UFUQ','UFUQ - ARUMA'] as $f)
+                    @foreach(config('wells.fields') as $f)
                     <option value="{{ $f }}">{{ $f }}</option>
                     @endforeach
                 </select>
@@ -141,22 +141,22 @@
                 <input x-model="value" type="text" class="input text-sm" />
             </template>
 
-            <p class="text-xs text-gray-400 mt-1">
-                Current: <span class="text-gray-600" x-text="getCurrent() || '—'"></span>
+            <p class="text-xs text-slate-400 mt-1">
+                Current: <span class="text-slate-600" x-text="getCurrent() || '—'"></span>
             </p>
             @endif
 
             {{-- Previous comments for this cell --}}
             <div x-show="comments.length > 0" class="mt-2">
-                <p class="text-xs font-medium text-gray-400 mb-1">Previous notes</p>
+                <p class="text-xs font-medium text-slate-400 mb-1">Previous notes</p>
                 <div class="max-h-24 overflow-y-auto scrollbar-thin space-y-1">
                     <template x-for="c in comments" :key="c.id">
-                        <div class="text-xs bg-blue-50 border border-blue-100 rounded px-2 py-1">
-                            <p class="text-gray-800 leading-snug" x-text="c.comment_text"></p>
-                            <p class="text-gray-400 mt-0.5">
+                        <div class="text-xs bg-brand-50 border border-brand-100 rounded px-2 py-1">
+                            <p class="text-slate-800 leading-snug" x-text="c.comment_text"></p>
+                            <p class="text-slate-400 mt-0.5">
                                 <span x-text="c.author?.name"></span>
                                 <span class="mx-0.5">·</span>
-                                <span x-text="c.created_at_human || c.created_at"></span>
+                                <span x-text="fmtDateTime(c.created_at)"></span>
                             </p>
                         </div>
                     </template>
@@ -175,17 +175,17 @@
 
             {{-- Audit history --}}
             <div class="flex-1 overflow-y-auto scrollbar-thin min-h-0">
-                <p class="text-xs font-medium text-gray-400 mb-1">Recent changes</p>
+                <p class="text-xs font-medium text-slate-400 mb-1">Recent changes</p>
                 <template x-if="auditHistory.length === 0">
-                    <p class="text-xs text-gray-300">No changes recorded yet.</p>
+                    <p class="text-xs text-slate-300">No changes recorded yet.</p>
                 </template>
                 <template x-for="entry in auditHistory" :key="entry.id">
-                    <div class="flex items-baseline gap-1 text-xs py-0.5 border-b border-gray-50">
-                        <span class="font-medium text-gray-700" x-text="entry.user?.name"></span>
-                        <span class="text-gray-400" x-text="entry.created_at_human || ''"></span>
-                        <span class="text-gray-400 line-through" x-text="entry.old_value || '—'"></span>
-                        <span class="text-gray-300 mx-0.5">→</span>
-                        <span class="text-gray-800 font-medium" x-text="entry.new_value || '—'"></span>
+                    <div class="flex items-baseline gap-1 text-xs py-0.5 border-b border-slate-50">
+                        <span class="font-medium text-slate-700" x-text="entry.user?.name"></span>
+                        <span class="text-slate-400" x-text="fmtDateTime(entry.created_at)"></span>
+                        <span class="text-slate-400 line-through" x-text="entry.old_value || '—'"></span>
+                        <span class="text-slate-300 mx-0.5">→</span>
+                        <span class="text-slate-800 font-medium" x-text="entry.new_value || '—'"></span>
                     </div>
                 </template>
             </div>
@@ -193,7 +193,7 @@
     </div>
 
     {{-- Panel footer --}}
-    <div class="flex items-center gap-3 px-4 py-2 border-t border-gray-100">
+    <div class="flex items-center gap-3 px-4 py-2 border-t border-slate-100">
         <button @click="save()" :disabled="saving" class="btn-primary btn-sm">
             <span x-text="saving ? 'Saving…' : '{{ auth()->user()->isManager() ? 'Add note' : 'Save update' }}'"></span>
         </button>
@@ -205,7 +205,7 @@
                 class="ml-auto flex items-center gap-1.5 btn-sm text-xs transition-colors"
                 :class="isCellHidden(editWell, editCell)
                     ? 'text-amber-600 border border-amber-300 bg-amber-50 rounded px-2 py-1 hover:bg-amber-100'
-                    : 'text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50'"
+                    : 'text-slate-400 hover:text-slate-600 border border-slate-200 rounded px-2 py-1 hover:bg-slate-50'"
                 :title="isCellHidden(editWell, editCell) ? 'Unhide: make value visible to all users' : 'Hide this cell value from non-admins and public links'">
             <template x-if="isCellHidden(editWell, editCell)">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -7,11 +7,11 @@
      @cell-saved.window="onCellSaved($event.detail)">
 
     {{-- ── Toolbar ──────────────────────────────────────────────────────────── --}}
-    <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shrink-0 flex-wrap">
-        <h2 class="text-sm font-semibold text-gray-900">IM-Master Track Overall</h2>
+    <div class="page-header flex-wrap">
+        <h2 class="page-title">IM-Master Track Overall</h2>
 
         {{-- Year selector — yearsReady guard prevents a spurious load() on the initial option render --}}
-        <select x-model="filterYear" @change="if (yearsReady) { page=1; load() }" class="input-sm w-24">
+        <select x-ref="yearSelect" x-model="filterYear" @change="if (yearsReady) { page=1; load() }" class="input-sm w-24">
             <option value="all">All years</option>
             <template x-for="y in availableYears" :key="y">
                 <option :value="String(y)" x-text="y"></option>
@@ -35,7 +35,7 @@
         </button>
 
         <div class="relative">
-            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"
                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
             </svg>
@@ -108,32 +108,32 @@
 
     {{-- ── Advanced filter panel ─────────────────────────────────────────────── --}}
     <div x-show="showFilters" x-cloak
-         class="px-4 py-3 bg-blue-50 border-b border-blue-200 shrink-0">
+         class="px-4 py-3 bg-brand-50 border-b border-brand-200 shrink-0">
         <div class="flex flex-wrap items-end gap-3">
 
             {{-- Earliest Start Date --}}
             <div class="flex items-center gap-1.5">
-                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Earliest Start ≥</label>
+                <label class="text-2xs font-medium text-slate-600 whitespace-nowrap">Earliest Start ≥</label>
                 <input x-model="filterDateFrom" @change="page=1; load()" type="date"
                        class="input-sm w-36" />
             </div>
             {{-- Earliest End Date --}}
             <div class="flex items-center gap-1.5">
-                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Earliest End ≤</label>
+                <label class="text-2xs font-medium text-slate-600 whitespace-nowrap">Earliest End ≤</label>
                 <input x-model="filterDateTo" @change="page=1; load()" type="date"
                        class="input-sm w-36" />
             </div>
 
             {{-- Well ID --}}
             <div class="flex items-center gap-1.5">
-                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Well ID</label>
+                <label class="text-2xs font-medium text-slate-600 whitespace-nowrap">Well ID</label>
                 <input x-model="filterWellId" @input="debouncedLoad()" type="text"
                        placeholder="e.g. W-123" class="input-sm w-28" />
             </div>
 
             {{-- Status (E-Pad) --}}
             <div class="flex items-center gap-1.5">
-                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">Status</label>
+                <label class="text-2xs font-medium text-slate-600 whitespace-nowrap">Status</label>
                 <select x-model="filterEpadStatus" @change="page=1; load()" class="input-sm w-28">
                     <option value="">All</option>
                     <option value="open">Open</option>
@@ -143,7 +143,7 @@
 
             {{-- SAP Status --}}
             <div class="flex items-center gap-1.5">
-                <label class="text-2xs font-medium text-gray-600 whitespace-nowrap">SAP Status</label>
+                <label class="text-2xs font-medium text-slate-600 whitespace-nowrap">SAP Status</label>
                 <select x-model="filterSapStatus" @change="page=1; load()" class="input-sm w-36">
                     <option value="">All</option>
                     <option value="SAP PM Completed">SAP PM Completed</option>
@@ -158,7 +158,7 @@
             <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input x-model="filterDelayed" @change="page=1; load()" type="checkbox"
                        class="w-3.5 h-3.5 rounded text-red-600" />
-                <span class="text-2xs font-medium text-gray-700">Commission overdue (&gt;90 days)</span>
+                <span class="text-2xs font-medium text-slate-700">Commission overdue (&gt;90 days)</span>
             </label>
 
             {{-- Reset --}}
@@ -174,7 +174,7 @@
     </div>
 
     {{-- ── Source legend ─────────────────────────────────────────────────────── --}}
-    <div class="flex items-center gap-5 px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-2xs text-gray-500 shrink-0">
+    <div class="flex items-center gap-5 px-4 py-1.5 bg-slate-50 border-b border-slate-200 text-2xs text-slate-500 shrink-0 overflow-x-auto whitespace-nowrap scrollbar-thin">
         @foreach([['project_wells','Fixed (Super Admin / Manager)','#1D9E75'],['sap_tracking','SAP Tracking','#BA7517'],['dc_tracking','DC Tracking','#D85A30'],['computed','Computed (auto)','#639922'],['custom','Custom','#7C3AED']] as [$key,$label,$color])
         <span class="flex items-center gap-1.5">
             <span class="inline-block w-4 h-0.5 rounded" style="background:{{ $color }}"></span>
@@ -188,7 +188,7 @@
 
         {{-- Loading overlay --}}
         <div x-show="loading" class="absolute inset-0 bg-white/70 flex items-center justify-center z-10">
-            <div class="flex items-center gap-2 text-gray-500 text-sm">
+            <div class="flex items-center gap-2 text-slate-500 text-sm">
                 <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -201,8 +201,8 @@
             <thead>
                 <tr>
                     @if(auth()->user()->isSuperAdmin())
-                    <th class="w-10 text-center bg-gray-50" style="border-top:2.5px solid transparent">
-                        <input type="checkbox" class="rounded border-gray-300 text-blue-600"
+                    <th class="w-10 text-center bg-slate-50" style="border-top:2.5px solid transparent">
+                        <input type="checkbox" class="rounded border-slate-300 text-brand-600"
                             :checked="allOnPageSelected()"
                             x-effect="$el.indeterminate = selectedIds.length > 0 && !allOnPageSelected()"
                             @change="selectAll()">
@@ -216,7 +216,7 @@
                             @if(auth()->user()->isSuperAdmin())
                             {{-- Hide / show toggle --}}
                             <button @click.stop="toggleHideColumn(col)"
-                                    :class="col.is_hidden ? 'opacity-100 text-blue-400' : 'opacity-0 group-hover/th:opacity-100 text-gray-400 hover:text-blue-500'"
+                                    :class="col.is_hidden ? 'opacity-100 text-brand-400' : 'opacity-0 group-hover/th:opacity-100 text-slate-400 hover:text-brand-500'"
                                     class="absolute top-0.5 left-0.5 transition-opacity p-0.5 rounded"
                                     :title="col.is_hidden ? 'Show column for all users' : 'Hide column from non-admins'">
                                 {{-- eye-slash when hidden --}}
@@ -248,16 +248,16 @@
                             @endif
                         </th>
                     </template>
-                    <th class="w-8 bg-gray-50" style="border-top:2.5px solid transparent"></th>
+                    <th class="w-8 bg-slate-50" style="border-top:2.5px solid transparent"></th>
                 </tr>
             </thead>
             <tbody>
                 <template x-for="well in wells" :key="well.id">
-                    <tr :class="[activeWellId === well.id ? 'active-row' : '', isSelected(well.id) ? 'bg-blue-50' : '', well.previous_year ? 'ring-inset ring-1 ring-amber-300' : '']" class="group">
+                    <tr :class="[activeWellId === well.id ? 'active-row' : '', isSelected(well.id) ? 'bg-brand-50' : '', well.previous_year ? 'ring-inset ring-1 ring-amber-300' : '']" class="group">
 
                         @if(auth()->user()->isSuperAdmin())
                         <td class="w-10 text-center" @click.stop>
-                            <input type="checkbox" class="rounded border-gray-300 text-blue-600"
+                            <input type="checkbox" class="rounded border-slate-300 text-brand-600"
                                 :checked="isSelected(well.id)"
                                 @change="toggleSelect(well.id)">
                         </td>
@@ -267,8 +267,8 @@
                             <td
                                 :class="[
                                     (canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }}) || canCommentOnly(col, '{{ auth()->user()->role }}'))
-                                        ? 'cursor-pointer hover:bg-blue-50 group/cell'
-                                        : 'text-gray-400',
+                                        ? 'cursor-pointer hover:bg-brand-50 group/cell'
+                                        : 'text-slate-400',
                                     col.is_hidden ? 'opacity-30 select-none' : ''
                                 ]"
                                 @click="(canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }}) || canCommentOnly(col, '{{ auth()->user()->role }}')) && openCell(well, col)"
@@ -292,7 +292,7 @@
                                                 'bg-red-500':   well.computed?.countdown_status === 'overdue',
                                                 'bg-amber-500': well.computed?.countdown_status === 'warning',
                                                 'bg-green-500': ['ok','closed'].includes(well.computed?.countdown_status),
-                                                'bg-gray-400':  !well.computed?.countdown_status || well.computed?.countdown_status === 'none',
+                                                'bg-slate-400':  !well.computed?.countdown_status || well.computed?.countdown_status === 'none',
                                             }"></span>
                                         <span x-text="well.computed?.countdown_days != null ? well.computed.countdown_days + 'd' : '—'"></span>
                                     </span>
@@ -304,7 +304,7 @@
                                         {{-- Hidden cell: super admin sees value with eye-slash + italic; others see nothing (stripped server-side) --}}
                                         @if(auth()->user()->isSuperAdmin())
                                         <template x-if="isCellHidden(well, col)">
-                                            <span class="flex items-center gap-1 opacity-40 italic text-gray-500 select-none" title="Hidden from non-admins">
+                                            <span class="flex items-center gap-1 opacity-40 italic text-slate-500 select-none" title="Hidden from non-admins">
                                                 <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                           d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
@@ -320,13 +320,13 @@
                                         @endif
                                         {{-- Comment indicator --}}
                                         <svg x-show="getCellComment(well, col)"
-                                            class="w-3 h-3 text-blue-400 shrink-0"
+                                            class="w-3 h-3 text-brand-400 shrink-0"
                                             fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z"/>
                                         </svg>
                                         {{-- Edit pencil --}}
                                         <svg x-show="canEdit(col, '{{ auth()->user()->role }}', {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }}) || canCommentOnly(col, '{{ auth()->user()->role }}')"
-                                            class="w-3 h-3 text-gray-300 opacity-0 group-hover/cell:opacity-100 transition-opacity shrink-0"
+                                            class="w-3 h-3 text-slate-300 opacity-0 group-hover/cell:opacity-100 transition-opacity shrink-0"
                                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                 d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
@@ -334,7 +334,7 @@
                                     </span>
                                     {{-- Updated-by micro-text --}}
                                     <span x-show="getUpdatedBy(well, col)"
-                                        class="block text-2xs text-gray-400 leading-none mt-0.5"
+                                        class="block text-2xs text-slate-400 leading-none mt-0.5"
                                         x-text="getUpdatedBy(well, col)"></span>
                                 </template>
                             </td>
@@ -344,7 +344,7 @@
                         <td class="w-8">
                             <div class="flex items-center gap-1">
                                 <button @click.stop="openAudit(well)"
-                                    class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-blue-600 p-1">
+                                    class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-brand-600 p-1">
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -360,7 +360,7 @@
                 </template>
 
                 <tr x-show="!loading && wells.length === 0">
-                    <td :colspan="columns.length + {{ auth()->user()->isSuperAdmin() ? 2 : 1 }}" class="text-center py-12 text-gray-400">
+                    <td :colspan="columns.length + {{ auth()->user()->isSuperAdmin() ? 2 : 1 }}" class="text-center py-12 text-slate-400">
                         No wells found.
                     </td>
                 </tr>
@@ -369,13 +369,13 @@
     </div>
 
     {{-- ── Pagination ───────────────────────────────────────────────────────── --}}
-    <div class="flex items-center justify-between px-4 py-2 border-t border-gray-200 bg-white text-xs text-gray-500 shrink-0">
-        <span x-text="(pagination?.total || 0) + ' wells'"></span>
+    <div class="flex items-center justify-between px-4 py-2 border-t border-slate-200 bg-white text-xs text-slate-500 shrink-0">
+        <span x-text="plural(pagination?.total || 0, 'well')"></span>
         <div class="flex gap-1">
             <template x-for="p in Array.from({length: pagination?.last_page || 1}, (_,i) => i+1)" :key="p">
                 <button @click="page = p; load()"
                     class="w-7 h-7 rounded text-xs transition-colors"
-                    :class="p === page ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-600'"
+                    :class="p === page ? 'bg-brand-600 text-white' : 'hover:bg-slate-100 text-slate-600'"
                     x-text="p"></button>
             </template>
         </div>
@@ -429,9 +429,9 @@
             <tbody>
                 <template x-for="w in departedWells" :key="w.id">
                     <tr class="border-b border-amber-100 hover:bg-amber-100 transition-colors">
-                        <td class="px-4 py-1.5 text-gray-700" x-text="w.well_id || '—'"></td>
-                        <td class="px-4 py-1.5 text-gray-700" x-text="w.well_number || '—'"></td>
-                        <td class="px-4 py-1.5 text-gray-500" x-text="w.well_type || '—'"></td>
+                        <td class="px-4 py-1.5 text-slate-700" x-text="w.well_id || '—'"></td>
+                        <td class="px-4 py-1.5 text-slate-700" x-text="w.well_number || '—'"></td>
+                        <td class="px-4 py-1.5 text-slate-500" x-text="w.well_type || '—'"></td>
                         <td class="px-4 py-1.5">
                             <span class="font-semibold text-amber-700" x-text="w.previous_year"></span>
                         </td>
@@ -484,10 +484,10 @@
          x-transition:leave="transition ease-in duration-100"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 translate-y-2"
-         class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl z-50 text-sm">
+         class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl z-50 text-sm">
         <span x-text="selectedIds.length + ' well(s) selected'"></span>
-        <button @click="clearSelection()" class="text-gray-400 hover:text-white px-2 transition-colors">Clear</button>
-        <div class="h-4 border-l border-gray-600"></div>
+        <button @click="clearSelection()" class="text-slate-400 hover:text-white px-2 transition-colors">Clear</button>
+        <div class="h-4 border-l border-slate-600"></div>
         <button @click="deleteSelected()"
                 class="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -502,10 +502,10 @@
     {{-- ── Cell Comment Tooltip ────────────────────────────────────────────────── --}}
     <div x-show="cellTooltip.visible"
          :style="`left:${cellTooltip.x}px; top:${cellTooltip.y}px`"
-         class="fixed z-9999 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 max-w-xs shadow-xl pointer-events-none"
+         class="fixed z-9999 bg-slate-900 text-white text-xs rounded-lg px-3 py-2 max-w-xs shadow-xl pointer-events-none"
          style="display:none">
         <p class="leading-relaxed" x-text="cellTooltip.comment?.comment_text"></p>
-        <p class="text-gray-400 mt-1" x-text="cellTooltip.comment?.author?.name ? '— ' + cellTooltip.comment.author.name : ''"></p>
+        <p class="text-slate-400 mt-1" x-text="cellTooltip.comment?.author?.name ? '— ' + cellTooltip.comment.author.name : ''"></p>
     </div>
 
 </div>

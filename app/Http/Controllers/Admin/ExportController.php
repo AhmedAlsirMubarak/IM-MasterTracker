@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Models\HiddenWellCell;
+use App\Models\MasterColumnConfig;
 use App\Models\ProjectWell;
 use App\Services\CountdownService;
 use Illuminate\Http\Response;
@@ -19,57 +21,70 @@ class ExportController extends Controller
             ->orderByRaw('well_number IS NULL, well_number ASC')
             ->get();
 
-        $headers = [
-            'Well No.', 'Well ID', 'Well Type', 'Contract No', 'Scope',
-            'HUA Date', 'RAMZ ID', 'Year', 'Responsible Asset',
-            'CIMS Upload Status', 'SPIR Status', 'ASB EDW Status',
-            'E-Pad Closeout', 'RLMU Status',
-            'SAP Status', 'Earliest Start', 'Earliest End', 'Station Code', 'Z6 Number',
-            'AFC EDW Status', 'Tie-in Completed', 'Commissioning Date', 'SAP KPI (days)',
-            'ASB Document Status', 'ASB Receive Date', 'ASB Submission Date',
-            'AFC Upload Status', 'RLMU Upload Status',
-            'Countdown Days', 'Countdown Status',
+        $date = fn ($d) => $d?->toDateString();
+
+        // [header, "source.column" key (for hiding), value getter]
+        $columns = [
+            ['Well No.',            'project_wells.well_number',          fn ($w, $s, $d, $c) => $w->well_number],
+            ['Well ID',             'project_wells.well_id',              fn ($w, $s, $d, $c) => $w->well_id],
+            ['Well Type',           'project_wells.well_type',            fn ($w, $s, $d, $c) => $w->well_type],
+            ['Contract No',         'project_wells.contract_no',          fn ($w, $s, $d, $c) => $w->contract_no],
+            ['Scope',               'project_wells.scope',                fn ($w, $s, $d, $c) => $w->scope],
+            ['HUA Date',            'project_wells.hua_date',             fn ($w, $s, $d, $c) => $date($w->hua_date)],
+            ['RAMZ ID',             'project_wells.ramz_id',              fn ($w, $s, $d, $c) => $w->ramz_id],
+            ['Year',                'project_wells.year',                 fn ($w, $s, $d, $c) => $w->year],
+            ['Responsible Asset',   'project_wells.responsible_asset',    fn ($w, $s, $d, $c) => $w->responsible_asset],
+            ['CIMS Upload Status',  'project_wells.cims_upload_status',   fn ($w, $s, $d, $c) => $w->cims_upload_status],
+            ['SPIR Status',         'project_wells.spir_status',          fn ($w, $s, $d, $c) => $w->spir_status],
+            ['ASB EDW Status',      'project_wells.asb_edw_status',       fn ($w, $s, $d, $c) => $w->asb_edw_status],
+            ['E-Pad Closeout',      'project_wells.e_pad_closeout',       fn ($w, $s, $d, $c) => $w->e_pad_closeout],
+            ['RLMU Status',         'project_wells.rlmu_status',          fn ($w, $s, $d, $c) => $w->rlmu_status],
+            ['SAP Status',          'sap_tracking.sap_status',            fn ($w, $s, $d, $c) => $s?->sap_status],
+            ['Earliest Start',      'sap_tracking.earliest_start_date',   fn ($w, $s, $d, $c) => $date($s?->earliest_start_date)],
+            ['Earliest End',        'sap_tracking.earliest_end_date',     fn ($w, $s, $d, $c) => $date($s?->earliest_end_date)],
+            ['Station Code',        'sap_tracking.station_code',          fn ($w, $s, $d, $c) => $s?->station_code],
+            ['Z6 Number',           'sap_tracking.z6_number',             fn ($w, $s, $d, $c) => $s?->z6_number],
+            ['AFC EDW Status',      'sap_tracking.afc_edw_status',        fn ($w, $s, $d, $c) => $s?->afc_edw_status],
+            ['Tie-in Completed',    'sap_tracking.hook_up_tie_in_completed', fn ($w, $s, $d, $c) => $date($s?->hook_up_tie_in_completed)],
+            ['Commissioning Date',  'sap_tracking.commissioning_date',    fn ($w, $s, $d, $c) => $date($s?->commissioning_date)],
+            ['SAP KPI (days)',      'computed.sap_kpi',                   fn ($w, $s, $d, $c) => $c['sap_kpi'] ?? null],
+            ['ASB Document Status', 'dc_tracking.asb_document_status',    fn ($w, $s, $d, $c) => $d?->asb_document_status],
+            ['ASB Receive Date',    'dc_tracking.asb_receive_date',       fn ($w, $s, $d, $c) => $date($d?->asb_receive_date)],
+            ['ASB Submission Date', 'dc_tracking.asb_document_submission_date', fn ($w, $s, $d, $c) => $date($d?->asb_document_submission_date)],
+            ['AFC Upload Status',   'dc_tracking.afc_upload_status',      fn ($w, $s, $d, $c) => $d?->afc_upload_status],
+            ['RLMU Upload Status',  'dc_tracking.rlmu_upload_status',     fn ($w, $s, $d, $c) => $d?->rlmu_upload_status],
+            ['Countdown Days',      'computed.countdown_days',            fn ($w, $s, $d, $c) => $c['countdown_days'] ?? null],
+            ['Countdown Status',    'computed.countdown_status',          fn ($w, $s, $d, $c) => $c['countdown_status'] ?? null],
         ];
 
-        $rows = [$headers];
+        // Non-admins never get hidden columns or hidden cells in the file
+        $hiddenByWell = collect();
+        if (!auth()->user()->isSuperAdmin()) {
+            $hiddenCols = MasterColumnConfig::where('project_id', $project->id)
+                ->where('is_hidden', true)
+                ->get(['source_table', 'source_column'])
+                ->map(fn ($c) => $c->source_table . '.' . $c->source_column)
+                ->all();
+            $columns = array_values(array_filter($columns, fn ($col) => !in_array($col[1], $hiddenCols, true)));
+
+            $hiddenByWell = HiddenWellCell::where('project_id', $project->id)
+                ->get(['well_id', 'source_table', 'source_column'])
+                ->groupBy('well_id')
+                ->map(fn ($rows) => $rows->map(fn ($r) => $r->source_table . '.' . $r->source_column)->all());
+        }
+
+        $rows = [array_column($columns, 0)];
 
         foreach ($wells as $well) {
-            $sap      = $well->sapTracking;
-            $dc       = $well->dcTracking;
             $computed = $this->countdown->computeForWell($well);
-
-            $rows[] = [
-                $well->well_number,
-                $well->well_id,
-                $well->well_type,
-                $well->contract_no,
-                $well->scope,
-                $well->hua_date?->toDateString(),
-                $well->ramz_id,
-                $well->year,
-                $well->responsible_asset,
-                $well->cims_upload_status,
-                $well->spir_status,
-                $well->asb_edw_status,
-                $well->e_pad_closeout,
-                $well->rlmu_status,
-                $sap?->sap_status,
-                $sap?->earliest_start_date?->toDateString(),
-                $sap?->earliest_end_date?->toDateString(),
-                $sap?->station_code,
-                $sap?->z6_number,
-                $sap?->afc_edw_status,
-                $sap?->hook_up_tie_in_completed?->toDateString(),
-                $sap?->commissioning_date?->toDateString(),
-                $sap?->sap_kpi,
-                $dc?->asb_document_status,
-                $dc?->asb_receive_date?->toDateString(),
-                $dc?->asb_document_submission_date?->toDateString(),
-                $dc?->afc_upload_status,
-                $dc?->rlmu_upload_status,
-                $computed['countdown_days'] ?? null,
-                $computed['countdown_status'] ?? null,
-            ];
+            $hidden   = $hiddenByWell->get($well->id, []);
+            $row      = [];
+            foreach ($columns as [, $key, $get]) {
+                $row[] = in_array($key, $hidden, true)
+                    ? null
+                    : $get($well, $well->sapTracking, $well->dcTracking, $computed);
+            }
+            $rows[] = $row;
         }
 
         $filename = 'master-' . str($project->name)->slug() . '-' . now()->format('Ymd') . '.csv';
@@ -126,7 +141,7 @@ class ExportController extends Controller
                 $sap?->spir_status,
                 $sap?->asb_edw_status,
                 $sap?->edw_remark,
-                $sap?->sap_kpi,
+                $this->countdown->computeSapKpi($sap?->earliest_end_date),
                 $sap?->updatedBy?->name,
             ];
         }
@@ -190,7 +205,7 @@ class ExportController extends Controller
     {
         $fp = fopen('php://memory', 'r+');
         foreach ($rows as $row) {
-            fputcsv($fp, array_map(fn($v) => $v ?? '', $row));
+            fputcsv($fp, array_map([\App\Support\Csv::class, 'cell'], $row));
         }
         rewind($fp);
         $csv = stream_get_contents($fp);

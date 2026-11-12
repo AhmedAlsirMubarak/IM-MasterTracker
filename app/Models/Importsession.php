@@ -10,6 +10,7 @@ class ImportSession extends Model
         'project_id', 'uploaded_by', 'original_filename', 'stored_path',
         'sheet_name', 'target_table', 'status', 'column_mapping',
         'total_rows', 'processed_rows', 'skipped_rows', 'error_log',
+        'created_wells', 'updated_wells', 'merged_rows', 'warning_log',
     ];
  
     protected $casts = [
@@ -30,7 +31,7 @@ class ImportSession extends Model
  
     public function getProgressAttribute(): int
     {
-        if ($this->total_rows === 0) return 0;
+        if (!$this->total_rows) return 0; // null before the job starts — avoid division by zero
         return (int) round(($this->processed_rows / $this->total_rows) * 100);
     }
 }

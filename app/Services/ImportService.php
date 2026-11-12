@@ -10,6 +10,8 @@ use App\Models\DcTracking;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
+use App\Services\Import\ImportRowInspector;
+use Illuminate\Support\Facades\Log;
 
 class ImportService
 {
@@ -195,195 +197,198 @@ class ImportService
     }
 
     /**
+     * Read every row with the given mapping and report what an import would do —
+     * new vs existing wells, repeated Well IDs, shared Well Numbers, unreadable
+     * values — without writing anything.
+     */
+    public function analyze(string $storedPath, string $sheet, array $mapping, int $projectId): array
+    {
+        $inspector = new ImportRowInspector($projectId);
+
+        $this->eachDataRow(Storage::path($storedPath), $sheet, function (array $row, array $headerRow, int $rowNum) use ($inspector, $mapping) {
+            $inspector->inspect($this->mapRow($row, $headerRow, $mapping), $rowNum);
+        });
+        $inspector->finish();
+
+        return $inspector->summary();
+    }
+
+    /**
      * Run the full import. Called from ProcessImportJob.
-     * For XLSX: streams rows one at a time via callback — never accumulates the whole sheet.
-     * Each row's updateOrCreate is auto-committed to avoid long-held MySQL gap locks
-     * on the jobs table that block new job inserts.
+     * Rows are streamed one at a time and each row is saved on its own, so one bad
+     * row never stops the rest. See ImportRowInspector for the matching rules.
      */
     public function execute(ImportSession $session): void
     {
         ini_set('memory_limit', '512M');
         $session->update(['status' => 'processing']);
 
-        $fullPath  = Storage::path($session->stored_path);
-        $ext       = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
-        $sheetName = $session->sheet_name ?? '';
-        $mapping   = $session->column_mapping;
+        $mapping    = $session->column_mapping;
+        $inspector  = new ImportRowInspector($session->project_id);
+        $lastUpdate = time();
 
-        $processed        = 0;
-        $skipped          = 0;
-        $errors           = [];
-        $headerRow        = null;
-        $totalRows        = 0;
-        $lastUpdate       = time();
-        $consecutiveEmpty = 0; // early-exit: stop after 500 consecutive rows with no well_id
+        $sapFillable = array_diff((new SapTracking)->getFillable(), ['project_well_id', 'updated_by', 'sap_kpi']);
+        $dcFillable  = array_diff((new DcTracking)->getFillable(),  ['project_well_id', 'updated_by']);
+        $wellColumns = array_merge(ProjectWell::$fixedColumns, ProjectWell::$managerColumns);
 
         try {
-            $processRow = function (array $row, int $rowNum) use (
-                &$headerRow, &$processed, &$skipped, &$errors, &$totalRows, &$lastUpdate, &$consecutiveEmpty, $session, $mapping
-            ): ?bool {
-                // First non-empty row is the header
-                if ($headerRow === null) {
-                    $filtered = array_filter($row, fn($v) => $v !== null && $v !== '');
-                    if (!empty($filtered)) {
-                        $headerRow = array_values($row);
-                    }
-                    return null;
+            $this->eachDataRow(Storage::path($session->stored_path), $session->sheet_name ?? '', function (array $row, array $headerRow, int $rowNum) use (
+                $inspector, $mapping, $session, $sapFillable, $dcFillable, $wellColumns, &$lastUpdate
+            ) {
+                $rowData = $inspector->inspect($this->mapRow($row, $headerRow, $mapping), $rowNum);
+                if ($rowData === null) {
+                    // Stop after 500 identifier-less rows in a row: sheets padded to 1,048,576 rows
+                    return $inspector->pendingNoIdCount() >= 500 ? false : null;
                 }
 
-                $totalRows++;
+                // A repeated Well ID only adds what it has; its blank cells must not wipe the earlier row
+                if ($inspector->lastWasRepeat) {
+                    $rowData = array_filter($rowData, fn ($v) => $v !== null);
+                }
 
                 try {
-                    $rowData = $this->mapRow(array_values($row), $headerRow, $mapping);
+                    $well = $inspector->findWell($rowData);
 
-                    $hasWellId     = !empty($rowData['well_id']     ?? null);
-                    $hasWellNumber = !empty($rowData['well_number'] ?? null);
-
-                    if (!$hasWellId && !$hasWellNumber) {
-                        $skipped++;
-                        // Stop reading after 500 consecutive rows with no identifier — handles Excel
-                        // sheets padded to 1,048,576 rows where only the first ~60 have real data
-                        if (++$consecutiveEmpty >= 500) {
-                            return false;
-                        }
-                    } else {
-                        $consecutiveEmpty = 0;
-
-                        // Try to find an existing well by well_id first, then by well_number
-                        $well = null;
-                        if ($hasWellId) {
-                            $well = ProjectWell::withTrashed()
-                                ->where('project_id', $session->project_id)
-                                ->where('well_id', $rowData['well_id'])
-                                ->first();
-                        }
-                        if (!$well && $hasWellNumber) {
-                            $well = ProjectWell::withTrashed()
-                                ->where('project_id', $session->project_id)
-                                ->where('well_number', $rowData['well_number'])
-                                ->first();
-                        }
-
-                        // Ensure well_id is set (required for create)
-                        if (!$hasWellId) {
-                            $rowData['well_id'] = $well?->well_id ?? $rowData['well_number'];
-                        }
-
-                        $updateData = array_merge(
-                            array_intersect_key($rowData, array_flip(
-                                array_merge(ProjectWell::$fixedColumns, ProjectWell::$managerColumns)
-                            )),
-                            ['updated_by' => $session->uploaded_by]
-                        );
-
-                        if ($well) {
-                            if ($well->trashed()) $well->restore();
-
-                            // If the year is changing, record the old year so the UI can show "shifted from X"
-                            $newYear = $updateData['year'] ?? null;
-                            if ($newYear && $well->year && (int) $newYear !== (int) $well->year) {
-                                $updateData['previous_year'] = $well->year;
-                            }
-
-                            $well->update($updateData);
-                        } else {
-                            $well = ProjectWell::create(array_merge(
-                                ['project_id' => $session->project_id, 'well_id' => $rowData['well_id']],
-                                $updateData,
-                                ['created_by' => $session->uploaded_by]
-                            ));
-                        }
-
-                        if (in_array($session->target_table, ['sap_tracking', 'all'])) {
-                            $sapFillable = array_diff((new SapTracking)->getFillable(), ['project_well_id', 'updated_by', 'sap_kpi']);
-                            $sapFields   = array_intersect_key($rowData, array_flip($sapFillable));
-                            if (!empty($sapFields)) {
-                                SapTracking::updateOrCreate(
-                                    ['project_well_id' => $well->id],
-                                    array_merge($sapFields, ['updated_by' => $session->uploaded_by])
-                                );
-                            }
-                        }
-
-                        if (in_array($session->target_table, ['dc_tracking', 'all'])) {
-                            $dcFillable = array_diff((new DcTracking)->getFillable(), ['project_well_id', 'updated_by']);
-                            $dcFields   = array_intersect_key($rowData, array_flip($dcFillable));
-                            if (!empty($dcFields)) {
-                                DcTracking::updateOrCreate(
-                                    ['project_well_id' => $well->id],
-                                    array_merge($dcFields, ['updated_by' => $session->uploaded_by])
-                                );
-                            }
-                        }
-
-                        $processed++;
+                    if (blank($rowData['well_id'] ?? null)) {
+                        $rowData['well_id'] = $well?->well_id ?? $rowData['well_number'];
                     }
-                } catch (\Exception $e) {
-                    $skipped++;
-                    $errors[] = "Row {$rowNum}: {$e->getMessage()}";
+
+                    $updateData = array_merge(
+                        array_intersect_key($rowData, array_flip($wellColumns)),
+                        ['updated_by' => $session->uploaded_by]
+                    );
+
+                    if ($well) {
+                        if ($well->trashed()) $well->restore();
+
+                        // Record the old year so the UI can show "shifted from X"
+                        $newYear = $updateData['year'] ?? null;
+                        if ($newYear && $well->year && (int) $newYear !== (int) $well->year) {
+                            $updateData['previous_year'] = $well->year;
+                        }
+
+                        $well->update($updateData);
+                    } else {
+                        $well = ProjectWell::create(array_merge(
+                            ['project_id' => $session->project_id, 'well_id' => $rowData['well_id']],
+                            $updateData,
+                            ['created_by' => $session->uploaded_by]
+                        ));
+                        $inspector->remember($well);
+                    }
+
+                    if (in_array($session->target_table, ['sap_tracking', 'all'], true)) {
+                        $sapFields = array_intersect_key($rowData, array_flip($sapFillable));
+                        if (!empty($sapFields)) {
+                            SapTracking::updateOrCreate(
+                                ['project_well_id' => $well->id],
+                                array_merge($sapFields, ['updated_by' => $session->uploaded_by])
+                            );
+                        }
+                    }
+
+                    if (in_array($session->target_table, ['dc_tracking', 'all'], true)) {
+                        $dcFields = array_intersect_key($rowData, array_flip($dcFillable));
+                        if (!empty($dcFields)) {
+                            DcTracking::updateOrCreate(
+                                ['project_well_id' => $well->id],
+                                array_merge($dcFields, ['updated_by' => $session->uploaded_by])
+                            );
+                        }
+                    }
+
+                    $inspector->applied();
+                } catch (\Throwable $e) {
+                    $inspector->failed($rowNum, $rowData, $e);
                 }
 
-                // Time-based update (every 3 s) instead of count-based — avoids 20k DB writes for huge sheets
-                $now = time();
-                if ($now - $lastUpdate >= 3) {
+                // Time-based progress update (every 3 s) instead of per row
+                if (time() - $lastUpdate >= 3) {
                     $session->update([
-                        'processed_rows' => $processed,
-                        'skipped_rows'   => $skipped,
-                        'total_rows'     => $totalRows,
+                        'processed_rows' => $inspector->rowsApplied,
+                        'skipped_rows'   => $inspector->rowsSkipped,
+                        'total_rows'     => $inspector->totalRows(),
                     ]);
-                    $lastUpdate = $now;
+                    $lastUpdate = time();
                 }
 
                 return null;
-            };
+            });
 
-            if ($ext === 'xlsx') {
-                $this->forEachXlsxRow($fullPath, $sheetName, $processRow);
-            } else {
-                $rows = $this->readRowsViaSpreadsheet($fullPath, $sheetName);
-                foreach ($rows as $i => $row) {
-                    $processRow($row, $i + 1);
-                }
-            }
+            $inspector->finish();
 
             $session->update([
                 'status'         => 'completed',
-                'processed_rows' => $processed,
-                'skipped_rows'   => $skipped,
-                'total_rows'     => $totalRows,
-                'error_log'      => implode("\n", $errors) ?: null,
+                'processed_rows' => $inspector->rowsApplied,
+                'skipped_rows'   => $inspector->rowsSkipped,
+                'total_rows'     => $inspector->totalRows(),
+                'created_wells'  => $inspector->createdCount(),
+                'updated_wells'  => $inspector->updatedCount(),
+                'merged_rows'    => $inspector->rowsMerged,
+                'error_log'      => ImportRowInspector::joinMessages($inspector->errors, $inspector->errorCount),
+                'warning_log'    => ImportRowInspector::joinMessages($inspector->warnings, $inspector->warningCount),
             ]);
 
-            AuditLog::create([
-                'user_id'         => $session->uploaded_by,
-                'model_type'      => 'import_session',
-                'model_id'        => $session->id,
-                'project_well_id' => null,
-                'field_name'      => 'import',
-                'old_value'       => $session->original_filename,
-                'new_value'       => "{$processed} rows imported, {$skipped} skipped",
-                'ip_address'      => null,
-                'user_agent'      => null,
-                'created_at'      => now(),
-            ]);
-        } catch (\Exception $e) {
-            $session->update([
-                'status'    => 'failed',
-                'error_log' => $e->getMessage(),
-            ]);
+            $this->logImport($session, sprintf(
+                '%d wells created, %d updated from %d rows (%d skipped, %d warnings)',
+                $inspector->createdCount(), $inspector->updatedCount(), $inspector->totalRows(),
+                $inspector->rowsSkipped, $inspector->warningCount
+            ));
+        } catch (\Throwable $e) {
+            Log::error('Import failed', ['session' => $session->id, 'exception' => $e]);
 
-            AuditLog::create([
-                'user_id'         => $session->uploaded_by,
-                'model_type'      => 'import_session',
-                'model_id'        => $session->id,
-                'project_well_id' => null,
-                'field_name'      => 'import',
-                'old_value'       => $session->original_filename,
-                'new_value'       => 'Import failed: ' . $e->getMessage(),
-                'ip_address'      => null,
-                'user_agent'      => null,
-                'created_at'      => now(),
-            ]);
+            $message = $e instanceof \RuntimeException && !($e instanceof \Illuminate\Database\QueryException)
+                ? $e->getMessage()
+                : 'The file could not be read. Check that it is a valid Excel or CSV file and try again.';
+
+            $session->update(['status' => 'failed', 'error_log' => $message]);
+            $this->logImport($session, 'Import failed: ' . $message);
+        } finally {
+            // The uploaded file is no longer needed once the import has run
+            Storage::delete($session->stored_path);
+        }
+    }
+
+    private function logImport(ImportSession $session, string $summary): void
+    {
+        AuditLog::create([
+            'user_id'         => $session->uploaded_by,
+            'model_type'      => 'import_session',
+            'model_id'        => $session->id,
+            'project_well_id' => null,
+            'field_name'      => 'import',
+            'old_value'       => $session->original_filename,
+            'new_value'       => $summary,
+            'ip_address'      => null,
+            'user_agent'      => null,
+            'created_at'      => now(),
+        ]);
+    }
+
+    /**
+     * Call $callback(row, headerRow, excelRowNumber) for every data row of a sheet.
+     * The first non-empty row is the header. The callback may return false to stop.
+     */
+    private function eachDataRow(string $fullPath, string $sheetName, callable $callback): void
+    {
+        $headerRow = null;
+        $handle = function (array $row, int $rowNum) use (&$headerRow, $callback) {
+            if ($headerRow === null) {
+                if (array_filter($row, fn ($v) => $v !== null && $v !== '')) {
+                    $headerRow = array_values($row);
+                }
+                return null;
+            }
+            return $callback(array_values($row), $headerRow, $rowNum);
+        };
+
+        if (strtolower(pathinfo($fullPath, PATHINFO_EXTENSION)) === 'xlsx') {
+            $this->forEachXlsxRow($fullPath, $sheetName, $handle);
+            return;
+        }
+
+        foreach ($this->readRowsViaSpreadsheet($fullPath, $sheetName) as $i => $row) {
+            if ($handle($row, $i + 1) === false) break;
         }
     }
 

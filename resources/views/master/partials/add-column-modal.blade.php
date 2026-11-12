@@ -2,7 +2,7 @@
 <div x-show="showAddColumn" x-cloak class="modal-backdrop" @click.self="showAddColumn = false; addColError = ''">
     <div class="modal" style="max-width:480px" @click.stop>
         <div class="card-header">
-            <h2 class="font-semibold text-gray-900">Add custom column</h2>
+            <h2 class="font-semibold text-slate-900">Add custom column</h2>
             <button @click="showAddColumn = false; addColError = ''" class="ml-auto btn-ghost btn-sm">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -32,7 +32,7 @@
 
                     {{-- Date hint --}}
                     <p x-show="addColForm.column_type === 'date'"
-                       class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                       class="text-xs text-slate-400 mt-1 flex items-center gap-1">
                         <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                   d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -55,11 +55,11 @@
                                 <input :value="opt.color"
                                        @input="addColForm.selectOptions[idx].color = $event.target.value"
                                        type="color"
-                                       class="w-8 h-8 rounded border border-gray-300 cursor-pointer p-0.5 shrink-0"
+                                       class="w-8 h-8 rounded border border-slate-300 cursor-pointer p-0.5 shrink-0"
                                        title="Pick a colour" />
                                 <button @click="addColForm.selectOptions.splice(idx, 1)"
                                         x-show="addColForm.selectOptions.length > 1"
-                                        class="text-gray-400 hover:text-red-500 shrink-0 transition-colors">
+                                        class="text-slate-400 hover:text-red-500 shrink-0 transition-colors">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
@@ -68,7 +68,7 @@
                         </template>
                     </div>
                     <button @click="addColForm.selectOptions.push({ label: '', color: '#888780' })"
-                            class="mt-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors">
+                            class="mt-2 text-xs text-brand-600 hover:text-brand-800 flex items-center gap-1 transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
@@ -88,7 +88,7 @@
                 </div>
             </div>
 
-            <div class="flex justify-end gap-2 mt-5 pt-3 border-t border-gray-100">
+            <div class="flex justify-end gap-2 mt-5 pt-3 border-t border-slate-100">
                 <button @click="showAddColumn = false; addColError = ''" class="btn-secondary">Cancel</button>
                 <button @click="addColumn()"
                         :disabled="addColSaving || !addColForm.label.trim() || (addColForm.column_type === 'select' && addColForm.selectOptions.every(o => !o.label.trim()))"

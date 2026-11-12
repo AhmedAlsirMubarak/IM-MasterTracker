@@ -12,11 +12,11 @@ class HiddenCellController extends Controller
 {
     public function toggle(Request $request, Project $project, ProjectWell $well)
     {
-        abort_if($well->project_id !== $project->id, 404);
+        abort_if((int) $well->project_id !== (int) $project->id, 404);
 
         $data = $request->validate([
-            'source_table'  => 'required|string',
-            'source_column' => 'required|string',
+            'source_table'  => 'required|in:project_wells,sap_tracking,dc_tracking,computed,custom',
+            'source_column' => 'required|string|max:100',
         ]);
 
         $existing = HiddenWellCell::where('well_id', $well->id)

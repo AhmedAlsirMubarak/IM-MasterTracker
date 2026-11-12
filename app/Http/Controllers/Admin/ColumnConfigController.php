@@ -50,6 +50,9 @@ class ColumnConfigController extends Controller
             'display_label' => 'nullable|string',
             'display_order' => 'nullable|integer',
         ]);
+
+        $known = array_column($this->service->availableColumns()[$data['source_table']] ?? [], 'column');
+        abort_unless(in_array($data['source_column'], $known, true), 422, 'Unknown column.');
  
         $config = MasterColumnConfig::updateOrCreate(
             ['project_id' => $project->id, 'source_table' => $data['source_table'], 'source_column' => $data['source_column']],
@@ -98,29 +101,33 @@ class ColumnConfigController extends Controller
 
         $slug = substr(Str::slug($data['label'], '_'), 0, 40) . '_' . Str::random(6);
 
-        if ($data['after_config_id']) {
-            $after = MasterColumnConfig::where('project_id', $project->id)
-                ->where('id', $data['after_config_id'])
-                ->firstOrFail();
-            $insertAt = $after->display_order + 1;
-            MasterColumnConfig::where('project_id', $project->id)
-                ->where('display_order', '>=', $insertAt)
-                ->increment('display_order');
-        } else {
-            $insertAt = (MasterColumnConfig::where('project_id', $project->id)->max('display_order') ?? 0) + 1;
-        }
+        $config = \Illuminate\Support\Facades\DB::transaction(function () use ($data, $project, $slug) {
+            if (!empty($data['after_config_id'])) {
+                $after = MasterColumnConfig::where('project_id', $project->id)
+                    ->where('id', $data['after_config_id'])
+                    ->firstOrFail();
 
-        $config = MasterColumnConfig::create([
-            'project_id'    => $project->id,
-            'source_table'  => 'custom',
-            'source_column' => $slug,
-            'display_label' => $data['label'],
-            'column_type'   => $data['column_type'],
-            'display_order' => $insertAt,
-            'is_pinned'     => true,
-            'is_locked'     => false,
-            'pinned_by'     => auth()->id(),
-        ]);
+                $insertAt = $after->display_order + 1;
+
+                MasterColumnConfig::where('project_id', $project->id)
+                    ->where('display_order', '>=', $insertAt)
+                    ->increment('display_order');
+            } else {
+                $insertAt = (MasterColumnConfig::where('project_id', $project->id)->max('display_order') ?? 0) + 1;
+            }
+
+            return MasterColumnConfig::create([
+                'project_id'    => $project->id,
+                'source_table'  => 'custom',
+                'source_column' => $slug,
+                'display_label' => $data['label'],
+                'column_type'   => $data['column_type'],
+                'display_order' => $insertAt,
+                'is_pinned'     => true,
+                'is_locked'     => false,
+                'pinned_by'     => auth()->id(),
+            ]);
+        });
 
         return response()->json($config, 201);
     }
@@ -143,7 +150,9 @@ class ColumnConfigController extends Controller
         abort_if($config->project_id !== $project->id, 404);
         abort_if($config->source_table !== 'custom', 403, 'Only custom columns can be deleted.');
 
-        CustomCellValue::where('source_column', $config->source_column)->delete();
+        CustomCellValue::where('project_id', $project->id)
+            ->where('source_column', $config->source_column)
+            ->delete();
 
         ColumnStatusOption::where('source_table', 'custom')
             ->where('source_column', $config->source_column)
@@ -173,13 +182,10 @@ class ColumnConfigController extends Controller
             'options'              => 'required|array',
             'options.*.option_value' => 'required|string',
             'options.*.option_label' => 'required|string',
-            'options.*.option_color' => 'nullable|string|max:7',
+            'options.*.option_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'options.*.sort_order'   => 'nullable|integer',
         ]);
-
-        ColumnStatusOption::where('source_table', $sourceTable)
-            ->where('source_column', $sourceColumn)
-            ->delete();
+        abort_unless(in_array($sourceTable, ['project_wells', 'sap_tracking', 'dc_tracking', 'custom'], true), 422, 'Unknown source table.');
 
         $now  = now();
         $rows = [];
@@ -196,10 +202,16 @@ class ColumnConfigController extends Controller
                 'updated_at'    => $now,
             ];
         }
+        // Replace atomically so a failed insert never leaves the column with no options
+        \Illuminate\Support\Facades\DB::transaction(function () use ($sourceTable, $sourceColumn, $rows) {
+            ColumnStatusOption::where('source_table', $sourceTable)
+                ->where('source_column', $sourceColumn)
+                ->delete();
 
-        if (!empty($rows)) {
-            ColumnStatusOption::insert($rows);
-        }
+            if (!empty($rows)) {
+                ColumnStatusOption::insert($rows);
+            }
+        });
 
         return response()->json(['message' => 'Status options saved.']);
     }

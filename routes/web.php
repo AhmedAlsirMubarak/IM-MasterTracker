@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\MasterWebController;
 use App\Http\Controllers\Admin\ContractController;
 use App\Http\Controllers\Admin\LetterController;
 use App\Http\Controllers\Admin\CvLetterController;
+use App\Http\Controllers\Admin\ContractImportController;
 use App\Http\Controllers\Web\SapWebController;
 use App\Http\Controllers\Web\DcWebController;
 use App\Http\Controllers\Web\AdminWebController;
@@ -24,8 +25,10 @@ use Illuminate\Support\Facades\Route;
 
 // ── Public share links (no auth required) ────────────────────────────────────
 
-Route::get('/share/{token}',       [ShareController::class, 'view']);
-Route::get('/share/{token}/wells', [ShareController::class, 'wells']);
+Route::middleware('throttle:60,1')->group(function () {
+    Route::get('/share/{token}',       [ShareController::class, 'view']);
+    Route::get('/share/{token}/wells', [ShareController::class, 'wells']);
+});
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -39,7 +42,7 @@ Route::post('/logout', [AuthWebController::class, 'logout'])
 
 // ── Authenticated ─────────────────────────────────────────────────────────────
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/', fn() => redirect()->route('contracts.index'));
 
@@ -57,12 +60,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/contracts/{contract}/cvs-data',            [CvLetterController::class, 'index']);
     Route::get('/contracts/{contract}/cvs-alerts',          [CvLetterController::class, 'alerts']);
     Route::get('/contracts/{contract}/cvs/export',          [CvLetterController::class, 'export']);
-    Route::post('/contracts/{contract}/cvs',                [CvLetterController::class, 'store']);
-    Route::put('/contracts/{contract}/cvs/{cv}',            [CvLetterController::class, 'update']);
-    Route::delete('/contracts/{contract}/cvs/{cv}',         [CvLetterController::class, 'destroy']);
-    Route::post('/contracts/{contract}/letters',           [LetterController::class, 'store']);
-    Route::put('/contracts/{contract}/letters/{letter}',   [LetterController::class, 'update']);
-    Route::delete('/contracts/{contract}/letters/{letter}',[LetterController::class, 'destroy']);
+    Route::get('/contracts/{contract}/import/template',    [ContractImportController::class, 'template']);
+
+    // Letters & CVs: every role except viewer can add, edit and import
+    Route::middleware('role:super_admin,manager,sap_admin,dc,im_lead')->group(function () {
+        Route::post('/contracts/{contract}/cvs',               [CvLetterController::class, 'store']);
+        Route::put('/contracts/{contract}/cvs/{cv}',           [CvLetterController::class, 'update']);
+        Route::post('/contracts/{contract}/letters',           [LetterController::class, 'store']);
+        Route::put('/contracts/{contract}/letters/{letter}',   [LetterController::class, 'update']);
+        Route::post('/contracts/{contract}/import/upload',     [ContractImportController::class, 'upload']);
+        Route::post('/contracts/{contract}/import/confirm',    [ContractImportController::class, 'confirm']);
+    });
+
+    // Deleting letters & CVs: super admin only (matches the UI)
+    Route::middleware('role:super_admin')->group(function () {
+        Route::delete('/contracts/{contract}/cvs/{cv}',         [CvLetterController::class, 'destroy']);
+        Route::delete('/contracts/{contract}/letters/{letter}', [LetterController::class, 'destroy']);
+    });
 
     Route::middleware('role:super_admin')->group(function () {
         Route::post('/contracts',                          [ContractController::class, 'store']);

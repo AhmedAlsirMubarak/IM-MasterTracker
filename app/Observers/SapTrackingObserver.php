@@ -16,10 +16,8 @@ class SapTrackingObserver
     public function updating(SapTracking $model): void
     {
         // Recompute SAP KPI before saving
-        $kpi = $this->countdown->computeSapKpi(
-            $model->earliest_start_date,
-            $model->earliest_end_date
-        );
+        // KPI = days remaining until EarliestEndDate (the start date is not an input)
+        $kpi = $this->countdown->computeSapKpi($model->earliest_end_date);
         $model->sap_kpi = $kpi;
     }
  
@@ -33,10 +31,8 @@ class SapTrackingObserver
  
     public function created(SapTracking $model): void
     {
-        $kpi = $this->countdown->computeSapKpi(
-            $model->earliest_start_date,
-            $model->earliest_end_date
-        );
+        // KPI = days remaining until EarliestEndDate (the start date is not an input)
+        $kpi = $this->countdown->computeSapKpi($model->earliest_end_date);
         if ($kpi !== null) {
             $model->updateQuietly(['sap_kpi' => $kpi]);
         }

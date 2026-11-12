@@ -118,6 +118,7 @@ class CvLetterController extends Controller
     {
         $alerts = $contract->cvs()
             ->where('approval_status', 'approved_temporary')
+            ->with('createdBy:id,name')
             ->get()
             ->filter(fn($c) => in_array($c->countdown_status, ['yellow', 'red'], true))
             ->map(fn($c) => $this->format($c))
@@ -174,7 +175,7 @@ class CvLetterController extends Controller
     {
         $fp = fopen('php://memory', 'r+');
         foreach ($rows as $row) {
-            fputcsv($fp, array_map(fn($v) => $v ?? '', $row));
+            fputcsv($fp, array_map([\App\Support\Csv::class, 'cell'], $row));
         }
         rewind($fp);
         $csv = stream_get_contents($fp);

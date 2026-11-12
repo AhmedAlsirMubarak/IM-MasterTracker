@@ -21,6 +21,7 @@ class ShareController extends Controller
     {
         $share = ProjectShare::where('token', $token)->firstOrFail();
         abort_if($share->isExpired(), 410, 'This share link has expired.');
+        abort_if(!$share->project, 404); // project was deleted
         return $share;
     }
 
@@ -57,46 +58,47 @@ class ShareController extends Controller
             $query->where('well_type', $type);
         }
 
-        $wells = $query->paginate($request->input('per_page', 50));
+        $wells = $query->paginate(max(1, min(200, (int) $request->input('per_page', 50))));
 
-        // Hidden cells for this page (strip values for public view)
+        // Public link: send only the visible pinned columns, never whole rows
+        $columns = $this->columnService->getPinnedColumns($project->id, false);
+        $visible = $columns->groupBy('source_table')->map(fn ($cols) => $cols->pluck('source_column')->all());
+
         $wellIds = $wells->pluck('id');
         $hiddenByWell = HiddenWellCell::whereIn('well_id', $wellIds)
-            ->get()
+            ->get(['well_id', 'source_table', 'source_column'])
             ->groupBy('well_id')
-            ->map(fn ($rows) => $rows->map(fn ($r) => $r->source_table . '.' . $r->source_column)->values());
+            ->map(fn ($rows) => $rows->map(fn ($r) => $r->source_table . '.' . $r->source_column)->all());
 
         $customByWell = CustomCellValue::whereIn('well_id', $wellIds)
-            ->get()
+            ->get(['well_id', 'source_column', 'value'])
             ->groupBy('well_id');
 
-        $wells->getCollection()->transform(function ($well) use ($customByWell, $hiddenByWell) {
-            $well->computed = $this->countdown->computeForWell($well);
-            $well->custom   = $customByWell->get($well->id, collect())
-                ->pluck('value', 'source_column')
-                ->toArray();
-
-            // Strip hidden cell values from the public response
-            $hidden = $hiddenByWell->get($well->id, collect())->all();
-            if ($hidden) {
-                foreach ($hidden as $key) {
-                    [$table, $col] = explode('.', $key, 2);
-                    if ($table === 'sap_tracking' && $well->sapTracking) {
-                        $well->sapTracking->$col = null;
-                    } elseif ($table === 'dc_tracking' && $well->dcTracking) {
-                        $well->dcTracking->$col = null;
-                    } elseif ($table === 'project_wells') {
-                        $well->$col = null;
-                    } elseif ($table === 'custom') {
-                        unset($well->custom[$col]);
-                    }
-                }
+        $pick = function (array $row, string $table, array $hidden) use ($visible): array {
+            $out = [];
+            foreach ($visible->get($table, []) as $col) {
+                $out[$col] = in_array("{$table}.{$col}", $hidden, true) ? null : ($row[$col] ?? null);
             }
+            return $out;
+        };
 
-            return $well;
-        });
+        $wells->setCollection($wells->getCollection()->map(function ($well) use ($pick, $hiddenByWell, $customByWell) {
+            $hidden = $hiddenByWell->get($well->id, []);
 
-        $columns = $this->columnService->getPinnedColumns($project->id, false);
+            return array_merge(
+                ['id' => $well->id],
+                $pick($well->attributesToArray(), 'project_wells', $hidden),
+                [
+                    'sap_tracking' => $pick($well->sapTracking?->attributesToArray() ?? [], 'sap_tracking', $hidden),
+                    'dc_tracking'  => $pick($well->dcTracking?->attributesToArray() ?? [], 'dc_tracking', $hidden),
+                    // Computed values drive the KPI/countdown badges, so all of them are sent (minus hidden cells)
+                    'computed'     => collect($this->countdown->computeForWell($well))
+                        ->map(fn ($v, $k) => in_array("computed.{$k}", $hidden, true) ? null : $v)
+                        ->all(),
+                    'custom'       => $pick($customByWell->get($well->id, collect())->pluck('value', 'source_column')->all(), 'custom', $hidden),
+                ]
+            );
+        }));
 
         return response()->json([
             'wells'        => $wells,

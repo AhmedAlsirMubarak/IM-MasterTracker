@@ -10,6 +10,8 @@ class Project extends Model
 {
     use HasFactory, SoftDeletes;
  
+    protected $attributes = ['status' => 'active'];
+
     protected $fillable = ['contract_id', 'name', 'description', 'status', 'created_by'];
  
     public function wells()

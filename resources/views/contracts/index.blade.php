@@ -5,11 +5,11 @@
 <div class="flex flex-col h-full" x-data="contractList()">
 
     {{-- Header --}}
-    <div class="flex items-center gap-3 px-6 py-4 bg-white border-b border-gray-200 shrink-0">
-        <h1 class="text-base font-semibold text-gray-900">Contracts</h1>
+    <div class="page-header">
+        <h1 class="page-title">Contracts</h1>
         <div class="flex-1"></div>
         @if(auth()->user()->isSuperAdmin())
-        <button @click="showCreate = true" class="btn-primary btn-sm flex items-center gap-1.5">
+        <button @click="error = ''; showCreate = true" class="btn-primary btn-sm flex items-center gap-1.5">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
@@ -20,7 +20,7 @@
 
     {{-- Loading --}}
     <div x-show="loading" class="flex-1 flex items-center justify-center">
-        <div class="flex items-center gap-2 text-gray-400 text-sm">
+        <div class="flex items-center gap-2 text-slate-400 text-sm">
             <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -31,16 +31,35 @@
 
     {{-- Contracts grid --}}
     <div x-show="!loading" class="flex-1 overflow-y-auto p-6">
+        {{-- Summary strip --}}
+        <div class="stat-strip mb-5" x-show="contracts.length > 0">
+            <div class="stat">
+                <span class="stat-label">Contracts</span>
+                <span class="stat-value" x-text="contracts.length"></span>
+                <span class="stat-sub">in total</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Active</span>
+                <span class="stat-value" x-text="contracts.filter(c => c.status === 'active').length"></span>
+                <span class="stat-sub">currently running</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Projects</span>
+                <span class="stat-value" x-text="contracts.reduce((n, c) => n + (c.projects_count || 0), 0)"></span>
+                <span class="stat-sub">across all contracts</span>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <template x-for="c in contracts" :key="c.id">
                 <a :href="`/contracts/${c.id}`"
-                   class="card hover:border-blue-300 hover:shadow-md transition-all duration-150 block group">
+                   class="card hover:border-brand-300 hover:shadow-md transition-all duration-150 block group">
                     <div class="card-body">
                         <div class="flex items-start justify-between gap-3 mb-3">
                             <div class="min-w-0 flex-1">
-                                <h3 class="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors"
+                                <h3 class="font-semibold text-slate-900 group-hover:text-brand-700 transition-colors"
                                     x-text="c.name"></h3>
-                                <p class="text-xs text-gray-500 mt-0.5" x-text="c.contract_no || 'No contract no.'"></p>
+                                <p class="text-xs text-slate-500 mt-0.5" x-text="c.contract_no || 'No contract no.'"></p>
                             </div>
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="badge"
@@ -48,7 +67,7 @@
                                     x-text="c.status"></span>
                                 @if(auth()->user()->isSuperAdmin())
                                 <button @click.prevent.stop="openEdit(c)"
-                                        class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                        class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-slate-400 hover:text-brand-600 hover:bg-brand-50"
                                         title="Edit contract">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -56,7 +75,7 @@
                                     </svg>
                                 </button>
                                 <button @click.prevent.stop="deleteContract(c)"
-                                        class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                        class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50"
                                         title="Delete contract">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -67,10 +86,10 @@
                             </div>
                         </div>
 
-                        <p class="text-xs text-gray-500 line-clamp-2 mb-4"
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4"
                            x-text="c.description || 'No description.'"></p>
 
-                        <div class="flex items-center gap-4 text-xs text-gray-500 border-t border-gray-100 pt-3">
+                        <div class="flex items-center gap-4 text-xs text-slate-500 border-t border-slate-100 pt-3">
                             <span class="flex items-center gap-1">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -85,7 +104,7 @@
             </template>
 
             <div x-show="contracts.length === 0 && !loading"
-                 class="col-span-full text-center py-16 text-gray-400 text-sm">
+                 class="col-span-full text-center py-16 text-slate-400 text-sm">
                 No contracts yet.
                 @if(auth()->user()->isSuperAdmin())
                 Click <strong>New contract</strong> to get started.
@@ -98,22 +117,22 @@
     <div x-show="showEdit" x-cloak class="modal-backdrop" @click.self="showEdit = false">
         <div class="modal" @click.stop>
             <div class="card-header">
-                <h2 class="font-semibold text-gray-900">Edit contract</h2>
+                <h2 class="font-semibold text-slate-900">Edit contract</h2>
                 <button @click="showEdit = false" class="ml-auto btn-ghost btn-sm">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </div>
-            <div class="card-body space-y-4">
+            <form class="card-body space-y-4" @submit.prevent="update()" @input="editError = ''">
                 <div x-show="editError" class="alert-danger" x-text="editError"></div>
                 <div>
                     <label class="label">Contract name <span class="text-red-500">*</span></label>
-                    <input x-model="editForm.name" class="input" placeholder="e.g. ODC-C3100000180" />
+                    <input x-model="editForm.name" class="input" required maxlength="255" placeholder="e.g. ODC-C3100000180" />
                 </div>
                 <div>
                     <label class="label">Contract NO</label>
-                    <input x-model="editForm.contract_no" class="input" placeholder="C3100000180" />
+                    <input x-model="editForm.contract_no" class="input" maxlength="100" placeholder="C3100000180" />
                 </div>
                 <div>
                     <label class="label">Description</label>
@@ -129,12 +148,12 @@
                     </select>
                 </div>
                 <div class="flex justify-end gap-2 pt-2">
-                    <button @click="showEdit = false" class="btn-secondary">Cancel</button>
-                    <button @click="update()" :disabled="saving" class="btn-primary">
+                    <button type="button" @click="showEdit = false" class="btn-secondary">Cancel</button>
+                    <button type="submit" :disabled="saving" class="btn-primary">
                         <span x-text="saving ? 'Saving…' : 'Save changes'"></span>
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -142,22 +161,22 @@
     <div x-show="showCreate" x-cloak class="modal-backdrop" @click.self="showCreate = false">
         <div class="modal" @click.stop>
             <div class="card-header">
-                <h2 class="font-semibold text-gray-900">New contract</h2>
+                <h2 class="font-semibold text-slate-900">New contract</h2>
                 <button @click="showCreate = false" class="ml-auto btn-ghost btn-sm">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </div>
-            <div class="card-body space-y-4">
+            <form class="card-body space-y-4" @submit.prevent="create()" @input="error = ''">
                 <div x-show="error" class="alert-danger" x-text="error"></div>
                 <div>
                     <label class="label">Contract name <span class="text-red-500">*</span></label>
-                    <input x-model="form.name" class="input" placeholder="e.g. ODC-C3100000180" />
+                    <input x-model="form.name" class="input" required maxlength="255" placeholder="e.g. ODC-C3100000180" />
                 </div>
                 <div>
                     <label class="label">Contract NO</label>
-                    <input x-model="form.contract_no" class="input" placeholder="C3100000180" />
+                    <input x-model="form.contract_no" class="input" maxlength="100" placeholder="C3100000180" />
                 </div>
                 <div>
                     <label class="label">Description</label>
@@ -165,12 +184,12 @@
                         placeholder="Brief description…"></textarea>
                 </div>
                 <div class="flex justify-end gap-2 pt-2">
-                    <button @click="showCreate = false" class="btn-secondary">Cancel</button>
-                    <button @click="create()" :disabled="saving" class="btn-primary">
+                    <button type="button" @click="showCreate = false" class="btn-secondary">Cancel</button>
+                    <button type="submit" :disabled="saving" class="btn-primary">
                         <span x-text="saving ? 'Creating…' : 'Create contract'"></span>
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 

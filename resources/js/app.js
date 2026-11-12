@@ -12,7 +12,7 @@ const ALL_LOCATIONS = [
     'LEKHWAIR-UM2',
     'LEKHWAIR-UM',
     'RASHEEQ D3',
-    'RASHEEQD4',
+    'RASHEEQ D4',
     'RASHEEQ D5',
 ]
 
@@ -35,6 +35,28 @@ const getHeaders = () => ({
     'X-Requested-With': 'XMLHttpRequest',
     'X-CSRF-TOKEN': csrf(),
 })
+
+/**
+ * Every validation message from a Laravel error response, one per line,
+ * so the user can fix all problems in one go.
+ */
+const apiError = (data, fallback = 'Something went wrong.') => {
+    const msgs = data?.errors ? [...new Set(Object.values(data.errors).flat())] : []
+    return msgs.length ? msgs.join('\n') : (data?.message || fallback)
+}
+window.apiError = apiError
+
+/** ISO / server timestamp → "12 Nov 2026, 16:07" in the viewer's own time zone. */
+const fmtDateTime = val => {
+    if (!val) return '—'
+    const d = new Date(val)
+    if (isNaN(d)) return val
+    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+window.fmtDateTime = fmtDateTime
+
+/** "1 well", "2 wells" */
+window.plural = (n, word, pluralWord = word + 's') => `${n} ${Number(n) === 1 ? word : pluralWord}`
 
 window.sourceColor = src => ({
     project_wells: '#1D9E75',
@@ -108,7 +130,7 @@ Alpine.data('contractList', () => ({
             const res  = await fetch('/contracts', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(this.form) })
             const data = await res.json()
             if (!res.ok) {
-                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+                this.error = apiError(data, 'Error.')
             } else {
                 this.contracts.unshift(data)
                 this.showCreate = false
@@ -131,7 +153,7 @@ Alpine.data('contractList', () => ({
             const res  = await fetch(`/contracts/${this.editId}`, { method: 'PUT', headers: jsonHeaders(), body: JSON.stringify(this.editForm) })
             const data = await res.json()
             if (!res.ok) {
-                this.editError = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+                this.editError = apiError(data, 'Error.')
             } else {
                 const idx = this.contracts.findIndex(c => c.id === this.editId)
                 if (idx !== -1) this.contracts[idx] = { ...this.contracts[idx], ...data }
@@ -171,7 +193,7 @@ Alpine.data('contractDetail', (contractId) => ({
             const res  = await fetch(`/contracts/${contractId}/projects`, { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(this.form) })
             const data = await res.json()
             if (!res.ok) {
-                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+                this.error = apiError(data, 'Error.')
             } else {
                 this.projects.unshift(data)
                 this.showCreate = false
@@ -228,7 +250,7 @@ Alpine.data('userManager', () => ({
             const res  = await fetch(url, { method: isEdit ? 'PUT' : 'POST', headers: jsonHeaders(), body: JSON.stringify(body) })
             const data = await res.json()
             if (!res.ok) {
-                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+                this.error = apiError(data, 'Error.')
             } else if (isEdit) {
                 const idx = this.users.findIndex(u => u.id === data.id)
                 if (idx !== -1) this.users[idx] = data; else this.users.push(data)
@@ -351,7 +373,7 @@ Alpine.data('cellEditPanel', () => ({
             })
             const data = await res.json()
             if (!res.ok) {
-                this.error = data.message || 'Save failed.'
+                this.error = apiError(data, 'Save failed.')
             } else {
                 this.saved = true
                 setTimeout(() => { this.saved = false }, 2500)
@@ -438,8 +460,13 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
                 this.availableYears = years
             }
         } catch {}
-        // Mark ready AFTER options are populated — the @change guard uses this
-        this.$nextTick(() => { this.yearsReady = true })
+        // Mark ready AFTER options are populated — the @change guard uses this.
+        // x-model set the value before the year options existed, so the browser fell back
+        // to showing "All years" while the grid was filtered to one year; re-sync it here.
+        this.$nextTick(() => {
+            if (this.$refs.yearSelect) this.$refs.yearSelect.value = this.filterYear
+            this.yearsReady = true
+        })
     },
 
     async load() {
@@ -575,7 +602,7 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
                 }),
             })
             const data = await res.json()
-            if (!res.ok) { this.addColError = data.message || 'Failed to create column.'; return }
+            if (!res.ok) { this.addColError = apiError(data, 'Failed to create column.'); return }
 
             // If select, persist options immediately
             if (this.addColForm.column_type === 'select') {
@@ -831,7 +858,7 @@ Alpine.data('sapGrid', (projectId, canBulkDelete = false) => ({
                 body: JSON.stringify(this.editWell.sap_tracking),
             })
             const data = await res.json()
-            if (!res.ok) { this.saveError = data.message || 'Error saving.'; this.saving = false; return }
+            if (!res.ok) { this.saveError = apiError(data, 'Error saving.'); this.saving = false; return }
             const idx = this.wells.findIndex(w => w.id === this.editWell.id)
             if (idx !== -1) {
                 this.wells[idx].sap_tracking = data.sap_tracking
@@ -917,7 +944,7 @@ Alpine.data('dcGrid', (projectId, canBulkDelete = false) => ({
                 body: JSON.stringify(this.editWell.dc_tracking),
             })
             const data = await res.json()
-            if (!res.ok) { this.saveError = data.message || 'Error saving.'; this.saving = false; return }
+            if (!res.ok) { this.saveError = apiError(data, 'Error saving.'); this.saving = false; return }
             const idx = this.wells.findIndex(w => w.id === this.editWell.id)
             if (idx !== -1) this.wells[idx].dc_tracking = data
             this.editWell = null
@@ -981,7 +1008,10 @@ Alpine.data('importWizard', (projectId) => ({
     fieldOptions:    [],
     targetTable:     'all',
     preview:         [],
+    analysis:        null,
+    loadingPreview:  false,
     replaceExisting: false,
+    result:          null,
     status:          '',
     progress:        0,
     processedRows:   0,
@@ -1024,7 +1054,7 @@ Alpine.data('importWizard', (projectId) => ({
             this.uploadProgress = 100
             this.sessionId      = data.session_id
             this.sheets         = data.sheets ?? {}
-            this.selectedSheet  = Object.keys(this.sheets)[0] || ''
+            this.selectedSheet  = this.bestSheet()
             this.sheetSelected()
             this.uploading = false
             this.step      = 2
@@ -1131,7 +1161,8 @@ Alpine.data('importWizard', (projectId) => ({
         return { project_wells: wells, sap_tracking: sap, dc_tracking: dc, all }[table] ?? all
     },
 
-    autoMap() {
+    /** Excel header → system field, for every header that matches a known field or alias. */
+    matchHeaders(headers) {
         const norm = s => (s ?? '').toLowerCase().trim()
             .replace(/[\s\/\-\.]+/g, '_')
             .replace(/[^a-z0-9_]/g, '')
@@ -1148,12 +1179,31 @@ Alpine.data('importWizard', (projectId) => ({
             for (const a of (f.aliases ?? [])) lookup[norm(a)] = f.value
         }
 
+        const result = {}
+        for (const header of headers) {
+            const n = norm(header)
+            if (n in lookup) result[header] = lookup[n]
+        }
+        return result
+    },
+
+    autoMap() {
+        const matched = this.matchHeaders(this.headers)
         // Clear then re-set in-place so Alpine x-model bindings stay live
         for (const k of Object.keys(this.mapping)) delete this.mapping[k]
-        for (const header of this.headers) {
-            const n = norm(header)
-            if (n in lookup) this.mapping[header] = lookup[n]
+        for (const [header, field] of Object.entries(matched)) this.mapping[header] = field
+    },
+
+    /** The data sheet is the one whose headers match the most fields (not a pivot/dashboard tab). */
+    bestSheet() {
+        let best = '', bestScore = -1
+        for (const [name, headers] of Object.entries(this.sheets)) {
+            const matched = Object.values(this.matchHeaders(headers || []))
+            const hasId   = matched.includes('well_id') || matched.includes('well_number')
+            const score   = matched.length + (hasId ? 1000 : 0)
+            if (score > bestScore) { best = name; bestScore = score }
         }
+        return best
     },
 
     sheetSelected() {
@@ -1187,6 +1237,7 @@ Alpine.data('importWizard', (projectId) => ({
 
     async loadPreview() {
         this.error = ''
+        this.loadingPreview = true
         try {
             const res  = await fetch(`/import/${this.sessionId}/preview`, {
                 method: 'POST', headers: jsonHeaders(),
@@ -1194,13 +1245,15 @@ Alpine.data('importWizard', (projectId) => ({
             })
             const data = await res.json()
             if (!res.ok) {
-                const firstErr = data.errors ? Object.values(data.errors)[0]?.[0] : null
-                this.error = firstErr || data.message || `Preview error ${res.status}.`
+                this.error = apiError(data, `Preview error ${res.status}.`)
+                this.loadingPreview = false
                 return
             }
-            this.preview = data.preview || []
-            this.step    = 3
+            this.preview  = data.preview || []
+            this.analysis = data.analysis || null
+            this.step     = 3
         } catch { this.error = 'Preview failed — check your connection.' }
+        this.loadingPreview = false
     },
 
     async confirm() {
@@ -1212,14 +1265,15 @@ Alpine.data('importWizard', (projectId) => ({
             })
             const data = await res.json()
             if (!res.ok) {
-                const firstErr = data.errors ? Object.values(data.errors)[0]?.[0] : null
-                this.error = firstErr || data.message || `Confirm error ${res.status}.`
+                this.error = apiError(data, `Confirm error ${res.status}.`)
                 return
             }
         } catch { this.error = 'Confirm failed — check your connection.'; return }
         this.step     = 4
         this.status   = 'pending'
         this.progress = 0
+        this.result   = null
+        window.dispatchEvent(new CustomEvent('import-updated'))
         this.pollStatus()
     },
 
@@ -1239,8 +1293,26 @@ Alpine.data('importWizard', (projectId) => ({
             }
             if (data.status !== 'completed' && data.status !== 'failed') {
                 setTimeout(() => this.pollStatus(), 2000)
+            } else {
+                this.result = data
+                // Refresh the history table below without a page reload
+                window.dispatchEvent(new CustomEvent('import-updated'))
             }
         } catch {}
+    },
+
+    /** Plain-language one-line result, in wells rather than rows. */
+    resultSummary(r) {
+        if (!r) return ''
+        const parts = [`${plural(r.created_wells || 0, 'well')} created`, `${r.updated_wells || 0} updated`]
+        let text = parts.join(', ') + ` from ${plural(r.total_rows || 0, 'row')}.`
+        if (r.merged_rows) text += ` ${plural(r.merged_rows, 'row')} repeated an earlier Well ID and ${r.merged_rows === 1 ? 'was' : 'were'} combined into that well.`
+        if (r.skipped_rows) text += ` ${plural(r.skipped_rows, 'row')} could not be imported.`
+        return text
+    },
+
+    messageLines(text) {
+        return (text || '').split('\n').filter(Boolean)
     },
 }))
 
@@ -1248,14 +1320,35 @@ Alpine.data('importHistory', (projectId) => ({
     sessions: [],
     loading:  false,
 
-    async init() {
+    openId:   null,
+
+    init() {
         this.loading = true
+        this.refresh()
+        window.addEventListener('import-updated', () => this.refresh())
+    },
+
+    async refresh() {
         try {
             const res  = await fetch(`/projects/${projectId}/import-history`, { headers: getHeaders() })
             const data = await res.json()
             this.sessions = Array.isArray(data) ? data : (data.data ?? [])
         } catch {}
         this.loading = false
+        // Keep the table live while any import is still running
+        clearTimeout(this._timer)
+        if (this.sessions.some(s => s.status === 'pending' || s.status === 'processing')) {
+            this._timer = setTimeout(() => this.refresh(), 3000)
+        }
+    },
+
+    lines(text) {
+        return (text || '').split('\n').filter(Boolean)
+    },
+
+    /** Imports run before well counts were recorded only have row counts. */
+    isLegacy(s) {
+        return !s.created_wells && !s.updated_wells && s.processed_rows > 0
     },
 
     statusBadge(status) {
@@ -1493,7 +1586,7 @@ Alpine.data('letterManager', (contractId, isSuperAdmin = false) => ({
             const res  = await fetch(url, { method, headers: jsonHeaders(), body: JSON.stringify(this.form) })
             const data = await res.json()
             if (!res.ok) {
-                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+                this.error = apiError(data, 'Error.')
             } else {
                 if (this.editId) {
                     const idx = this.letters.findIndex(l => l.id === this.editId)
@@ -1693,7 +1786,7 @@ Alpine.data('cvManager', (contractId, isSuperAdmin = false) => ({
             const res  = await fetch(url, { method, headers: jsonHeaders(), body: JSON.stringify(this.form) })
             const data = await res.json()
             if (!res.ok) {
-                this.error = (data.errors ? Object.values(data.errors)[0]?.[0] : null) || data.message || 'Error.'
+                this.error = apiError(data, 'Error.')
             } else {
                 if (this.editId) {
                     const idx = this.cvs.findIndex(c => c.id === this.editId)
@@ -1716,6 +1809,148 @@ Alpine.data('cvManager', (contractId, isSuperAdmin = false) => ({
     fmtDate(d) {
         if (!d) return '—'
         return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    },
+}))
+
+Alpine.data('contractImport', (contractId, type) => ({
+    open:       false,
+    stage:      'upload',
+    dragging:   false,
+    error:      '',
+    uploading:  false,
+    submitting: false,
+    token:      null,
+    headers:    [],
+    sampleRows: [],
+    fields:     [],
+    mapping:    {},
+    totalRows:  0,
+    result:     null,
+
+    show() {
+        this.open  = true
+        this.error = ''
+        this.reset()
+    },
+
+    close() {
+        this.open = false
+    },
+
+    reset() {
+        this.stage      = 'upload'
+        this.token      = null
+        this.headers    = []
+        this.sampleRows = []
+        this.fields     = []
+        this.mapping    = {}
+        this.result     = null
+        this.error      = ''
+    },
+
+    handleFile(event) {
+        const file = event.target.files[0]
+        if (file) this.upload(file)
+    },
+
+    handleDrop(event) {
+        this.dragging = false
+        const file = event.dataTransfer.files[0]
+        if (file) this.upload(file)
+    },
+
+    async upload(file) {
+        this.uploading = true
+        this.error     = ''
+
+        const form = new FormData()
+        form.append('type', type)
+        form.append('file', file)
+
+        try {
+            const res = await fetch(`/contracts/${contractId}/import/upload`, {
+                method:  'POST',
+                headers: getHeaders(),
+                body:    form,
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                this.error = apiError(data, 'Upload failed.')
+            } else {
+                this.token      = data.token
+                this.headers    = data.headers
+                this.sampleRows = data.sample_rows
+                this.fields     = data.fields
+                this.mapping    = {}
+                this.totalRows  = data.total_rows
+                this.stage      = 'map'
+                // Defer until Alpine flushes the DOM — options must exist in
+                // the <select> before x-model can sync the selected value.
+                this.$nextTick(() => this.autoMap())
+            }
+        } catch {
+            this.error = 'Network error.'
+        }
+        this.uploading = false
+    },
+
+    autoMap() {
+        const norm = s => (s ?? '').toLowerCase().trim()
+            .replace(/[\s\/\-\.]+/g, '_')
+            .replace(/[^a-z0-9_]/g, '')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '')
+
+        // null-prototype object avoids false matches against Object.prototype properties
+        const lookup = Object.create(null)
+        for (const f of this.fields) {
+            lookup[f.value]       = f.value
+            lookup[norm(f.label)] = f.value
+            for (const a of (f.aliases ?? [])) lookup[norm(a)] = f.value
+        }
+
+        this.headers.forEach((header, idx) => {
+            const n = norm(header)
+            if (n in lookup) this.mapping[lookup[n]] = idx
+        })
+    },
+
+    previewValue(fieldValue, row) {
+        const idx = this.mapping[fieldValue]
+        if (idx === undefined || idx === null || idx === '') return ''
+        const v = row[idx]
+        return v === null || v === undefined ? '' : v
+    },
+
+    get missingRequired() {
+        return this.fields.filter(f => f.required && (this.mapping[f.value] === undefined || this.mapping[f.value] === ''))
+    },
+
+    async confirm() {
+        if (this.missingRequired.length) {
+            this.error = `Please map: ${this.missingRequired.map(f => f.label).join(', ')}`
+            return
+        }
+        this.submitting = true
+        this.error      = ''
+        try {
+            const res  = await fetch(`/contracts/${contractId}/import/confirm`, {
+                method:  'POST',
+                headers: jsonHeaders(),
+                body:    JSON.stringify({ type, token: this.token, mapping: this.mapping }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                this.error = apiError(data, 'Import failed.')
+            } else {
+                this.result = data
+                this.stage  = 'result'
+                this.$dispatch(type === 'cvs' ? 'cvs-imported' : 'letters-imported')
+            }
+        } catch {
+            this.error = 'Network error.'
+        }
+        this.submitting = false
     },
 }))
 

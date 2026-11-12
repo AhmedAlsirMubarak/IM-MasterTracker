@@ -25,7 +25,7 @@ class ImportController extends Controller
         ]);
 
         $uploadedFile = $request->file('file');
-        $ext      = $uploadedFile->getClientOriginalExtension();
+        $ext      = strtolower($uploadedFile->getClientOriginalExtension());
         $filename = Str::uuid() . '.' . $ext;
         $destDir  = storage_path('app/private/imports');
 
@@ -68,7 +68,15 @@ class ImportController extends Controller
             $data['mapping']
         );
  
-        return response()->json(['preview' => $preview]);
+        // Check every row, not just the first 10, so problems show up before importing
+        $analysis = $this->importService->analyze(
+            $session->stored_path,
+            $data['sheet'],
+            $data['mapping'],
+            $session->project_id
+        );
+
+        return response()->json(['preview' => $preview, 'analysis' => $analysis]);
     }
  
     /** Confirm mapping and dispatch async import job */
@@ -116,7 +124,11 @@ class ImportController extends Controller
             'total_rows'     => $session->total_rows,
             'processed_rows' => $session->processed_rows,
             'skipped_rows'   => $session->skipped_rows,
+            'created_wells'  => $session->created_wells,
+            'updated_wells'  => $session->updated_wells,
+            'merged_rows'    => $session->merged_rows,
             'error_log'      => $session->error_log,
+            'warning_log'    => $session->warning_log,
         ]);
     }
  

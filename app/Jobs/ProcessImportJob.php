@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Storage;
 
 class ProcessImportJob implements ShouldQueue
 {
@@ -29,7 +30,9 @@ class ProcessImportJob implements ShouldQueue
     {
         $this->session->update([
             'status'    => 'failed',
-            'error_log' => $exception->getMessage(),
+            'error_log' => 'The import stopped unexpectedly. Please try again; if it keeps failing, check the file.',
         ]);
+
+        Storage::delete($this->session->stored_path);
     }
 }

@@ -26,18 +26,38 @@ class SapTrackingController extends Controller
             );
         }
  
-        return response()->json($query->paginate($request->input('per_page', 50)));
+        $wells = $query->paginate(max(1, min(200, (int) $request->input('per_page', 50))));
+
+        // The stored sap_kpi goes stale every day; send the live value instead
+        $wells->getCollection()->each(function ($well) {
+            $well->sapTracking?->setAttribute('sap_kpi', $this->countdown->computeSapKpi($well->sapTracking->earliest_end_date));
+        });
+
+        return response()->json($wells);
     }
  
     public function update(Request $request, ProjectWell $well)
     {
-        $fillable = (new SapTracking)->getFillable();
+        // Only real tracking fields; ids, keys and computed values are never client-writable.
+        // (collect()->except() works on keys, not values, so it never removed these before.)
+        $model    = new SapTracking;
+        $editable = array_diff($model->getFillable(), ['project_well_id', 'updated_by', 'sap_kpi']);
+        $casts    = $model->getCasts();
+
         $data = $request->validate(
-            collect($fillable)->except(['project_well_id', 'updated_by', 'sap_kpi'])
-                ->mapWithKeys(fn($f) => [$f => 'nullable'])
+            collect($editable)
+                ->mapWithKeys(fn ($f) => [$f => ($casts[$f] ?? null) === 'date' ? 'nullable|date' : 'nullable'])
                 ->all()
         );
  
+        // End date may not be before start date (compare against stored values for partial updates)
+        $start = array_key_exists('earliest_start_date', $data) ? $data['earliest_start_date'] : $well->sapTracking?->earliest_start_date;
+        $end   = array_key_exists('earliest_end_date', $data)   ? $data['earliest_end_date']   : $well->sapTracking?->earliest_end_date;
+        $datesTouched = array_key_exists('earliest_start_date', $data) || array_key_exists('earliest_end_date', $data);
+        if ($datesTouched && $msg = SapTracking::dateRangeError($start, $end)) {
+            return response()->json(['message' => $msg, 'errors' => ['earliest_end_date' => [$msg]]], 422);
+        }
+
         $sap = $well->sapTracking ?? $well->sapTracking()->create(['project_well_id' => $well->id]);
 
         $sap->fill(array_merge($data, ['updated_by' => auth()->id()]))->save();

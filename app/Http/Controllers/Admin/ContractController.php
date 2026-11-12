@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\Project;
 use App\Services\MasterColumnService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ContractController extends Controller
 {
@@ -26,24 +27,24 @@ class ContractController extends Controller
     {
         $data = $request->validate([
             'name'        => 'required|string|max:255',
-            'contract_no' => 'nullable|string|max:100',
+            'contract_no' => ['nullable', 'string', 'max:100', $this->uniqueContractNo()],
             'description' => 'nullable|string',
             'status'      => 'in:active,archived,closed',
-        ]);
+        ], $this->messages());
 
-        $contract = Contract::create(array_merge($data, ['created_by' => auth()->id()]));
+        $contract = Contract::create(array_merge(['status' => 'active'], $data, ['created_by' => auth()->id()]));
 
-        return response()->json($contract->load('createdBy:id,name'), 201);
+        return response()->json($contract->fresh()->load('createdBy:id,name')->loadCount('projects'), 201);
     }
 
     public function update(Request $request, Contract $contract)
     {
         $data = $request->validate([
             'name'        => 'sometimes|string|max:255',
-            'contract_no' => 'nullable|string|max:100',
+            'contract_no' => ['nullable', 'string', 'max:100', $this->uniqueContractNo($contract->id)],
             'description' => 'nullable|string',
             'status'      => 'in:active,archived,closed',
-        ]);
+        ], $this->messages());
 
         $contract->update($data);
         return response()->json($contract);
@@ -81,7 +82,7 @@ class ContractController extends Controller
             'status'      => 'in:active,archived,closed',
         ]);
 
-        $project = Project::create(array_merge($data, [
+        $project = Project::create(array_merge(['status' => 'active'], $data, [
             'contract_id' => $contract->id,
             'created_by'  => auth()->id(),
         ]));
@@ -89,5 +90,18 @@ class ContractController extends Controller
         $this->columnService->seedDefaults($project->id);
 
         return response()->json($project->load('createdBy:id,name')->loadCount('wells'), 201);
+    }
+
+    /** contract_no must be unique among contracts that have not been deleted. */
+    private function uniqueContractNo(?int $ignoreId = null)
+    {
+        return Rule::unique('contracts', 'contract_no')
+            ->whereNull('deleted_at')
+            ->ignore($ignoreId);
+    }
+
+    private function messages(): array
+    {
+        return ['contract_no.unique' => 'A contract with this number already exists.'];
     }
 }

@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $project->name }} — Shared View</title>
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="h-full flex flex-col overflow-hidden bg-gray-50">
+<body class="h-full flex flex-col overflow-hidden bg-slate-100">
 
 {{-- Read-only banner --}}
 <div class="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-3 text-sm text-amber-800">
@@ -25,8 +27,8 @@
      x-data="sharedGrid('{{ $share->token }}')">
 
     {{-- Toolbar --}}
-    <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shrink-0 flex-wrap">
-        <h2 class="text-sm font-semibold text-gray-900">IM-Master Track — {{ $project->name }}</h2>
+    <div class="page-header flex-wrap">
+        <h2 class="page-title">IM-Master Track — {{ $project->name }}</h2>
 
         <select x-model="filterYear" @change="page=1; load()" class="input-sm w-24">
             <option value="all">All years</option>
@@ -38,7 +40,7 @@
         <div class="flex-1"></div>
 
         <div class="relative">
-            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"
                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
             </svg>
@@ -53,7 +55,7 @@
     </div>
 
     {{-- Source legend --}}
-    <div class="flex items-center gap-5 px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-2xs text-gray-500 shrink-0">
+    <div class="flex items-center gap-5 px-4 py-1.5 bg-slate-50 border-b border-slate-200 text-2xs text-slate-500 shrink-0 overflow-x-auto whitespace-nowrap scrollbar-thin">
         @foreach([['project_wells','Fixed','#1D9E75'],['sap_tracking','SAP Tracking','#BA7517'],['dc_tracking','DC Tracking','#D85A30'],['computed','Computed (auto)','#639922'],['custom','Custom','#7C3AED']] as [$key,$label,$color])
         <span class="flex items-center gap-1.5">
             <span class="inline-block w-4 h-0.5 rounded" style="background:{{ $color }}"></span>
@@ -65,7 +67,7 @@
     {{-- Table --}}
     <div class="flex-1 overflow-auto scrollbar-thin relative">
         <div x-show="loading" class="absolute inset-0 bg-white/70 flex items-center justify-center z-10">
-            <div class="flex items-center gap-2 text-gray-500 text-sm">
+            <div class="flex items-center gap-2 text-slate-500 text-sm">
                 <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -88,7 +90,7 @@
                 <template x-for="well in wells" :key="well.id">
                     <tr class="group">
                         <template x-for="col in columns" :key="col.id">
-                            <td class="text-gray-700">
+                            <td class="text-slate-700">
                                 <template x-if="col.source_column === 'sap_kpi'">
                                     <span class="badge" :class="badgeClass(kpiStatus(well.computed?.sap_kpi))"
                                           x-text="well.computed?.sap_kpi != null ? well.computed.sap_kpi + 'd' : '—'"></span>
@@ -100,7 +102,7 @@
                                                 'bg-red-500':   well.computed?.countdown_status === 'overdue',
                                                 'bg-amber-500': well.computed?.countdown_status === 'warning',
                                                 'bg-green-500': ['ok','closed'].includes(well.computed?.countdown_status),
-                                                'bg-gray-400':  !well.computed?.countdown_status || well.computed?.countdown_status === 'none',
+                                                'bg-slate-400':  !well.computed?.countdown_status || well.computed?.countdown_status === 'none',
                                             }"></span>
                                         <span x-text="well.computed?.countdown_days != null ? well.computed.countdown_days + 'd' : '—'"></span>
                                     </span>
@@ -113,14 +115,14 @@
                     </tr>
                 </template>
                 <template x-if="!loading && wells.length === 0">
-                    <tr><td :colspan="columns.length" class="text-center text-gray-400 py-8">No wells found.</td></tr>
+                    <tr><td :colspan="columns.length" class="text-center text-slate-400 py-8">No wells found.</td></tr>
                 </template>
             </tbody>
         </table>
     </div>
 
     {{-- Pagination --}}
-    <div class="flex items-center gap-3 px-4 py-2 bg-white border-t border-gray-200 text-xs text-gray-500 shrink-0">
+    <div class="flex items-center gap-3 px-4 py-2 bg-white border-t border-slate-200 text-xs text-slate-500 shrink-0">
         <span x-text="`${pagination?.total ?? 0} wells`"></span>
         <div class="flex-1"></div>
         <button @click="page--; load()" :disabled="page <= 1" class="btn-secondary btn-sm">←</button>

@@ -4,9 +4,9 @@
 @section('content')
 <div class="flex flex-col h-full" x-data="dcGrid({{ $project->id }}, @json(auth()->user()->isSuperAdmin()))">
 
-    <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shrink-0">
+    <div class="page-header">
         <div class="w-2 h-5 rounded bg-orange-500"></div>
-        <h2 class="text-sm font-semibold text-gray-900">DC Detailed Tracking</h2>
+        <h2 class="page-title">DC Detailed Tracking</h2>
         <div class="flex-1"></div>
         <input x-model="search" @input="debounce(() => { page=1; load() }, 300)()"
             class="input-sm w-44" placeholder="Search wells…" />
@@ -23,7 +23,7 @@
 
     <div class="flex-1 overflow-auto scrollbar-thin relative">
         <div x-show="loading" class="absolute inset-0 bg-white/70 flex items-center justify-center z-10">
-            <svg class="animate-spin w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+            <svg class="animate-spin w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
@@ -34,7 +34,7 @@
                 <tr>
                     @if(auth()->user()->isSuperAdmin())
                     <th class="w-10 text-center bg-stone-100 text-stone-400">
-                        <input type="checkbox" class="rounded border-gray-300 text-blue-600"
+                        <input type="checkbox" class="rounded border-slate-300 text-brand-600"
                             :checked="allOnPageSelected()"
                             x-effect="$el.indeterminate = selectedIds.length > 0 && !allOnPageSelected()"
                             @change="selectAll()">
@@ -56,10 +56,10 @@
             </thead>
             <tbody>
                 <template x-for="well in wells" :key="well.id">
-                    <tr class="group" :class="isSelected(well.id) ? 'bg-blue-50' : ''">
+                    <tr class="group" :class="isSelected(well.id) ? 'bg-brand-50' : ''">
                         @if(auth()->user()->isSuperAdmin())
                         <td class="w-10 text-center" @click.stop>
-                            <input type="checkbox" class="rounded border-gray-300 text-blue-600"
+                            <input type="checkbox" class="rounded border-slate-300 text-brand-600"
                                 :checked="isSelected(well.id)"
                                 @change="toggleSelect(well.id)">
                         </td>
@@ -80,7 +80,7 @@
                                     'badge-gray':  !['UNDER REVIEW','Submitted','RLMU','Approved','Rejected'].includes(well.dc_tracking?.asb_document_status),
                                 }"
                                 x-text="well.dc_tracking?.asb_document_status"></span>
-                            <span x-show="!well.dc_tracking?.asb_document_status" class="text-gray-300">—</span>
+                            <span x-show="!well.dc_tracking?.asb_document_status" class="text-slate-300">—</span>
                         </td>
                         <td x-text="fmtDate(well.dc_tracking?.asb_receive_date)"></td>
                         <td x-text="fmtDate(well.dc_tracking?.asb_document_submission_date)"></td>
@@ -88,7 +88,7 @@
                         <td x-text="well.dc_tracking?.afc_upload_status || '—'"></td>
                         <td x-text="well.dc_tracking?.rlmu_upload_status || '—'"></td>
                         <td x-text="well.dc_tracking?.document_im_health_check || '—'"></td>
-                        <td class="bg-stone-100 text-stone-400 text-xs" x-text="well.dc_tracking?.updated_by_name || '—'"></td>
+                        <td class="bg-stone-100 text-stone-400 text-xs" x-text="well.dc_tracking?.updated_by?.name || '—'"></td>
                         <td class="bg-stone-100">
                             <button @click="openEdit(well)"
                                 class="opacity-0 group-hover:opacity-100 btn-secondary btn-sm transition-opacity">
@@ -98,18 +98,18 @@
                     </tr>
                 </template>
                 <tr x-show="!loading && wells.length === 0">
-                    <td colspan="{{ auth()->user()->isSuperAdmin() ? 13 : 12 }}" class="text-center py-10 text-gray-400">No wells found.</td>
+                    <td colspan="{{ auth()->user()->isSuperAdmin() ? 13 : 12 }}" class="text-center py-10 text-slate-400">No wells found.</td>
                 </tr>
             </tbody>
         </table>
     </div>
 
-    <div class="flex items-center justify-between px-4 py-2 border-t border-gray-200 bg-white text-xs text-gray-500 shrink-0">
-        <span x-text="(pagination?.total || 0) + ' wells'"></span>
+    <div class="flex items-center justify-between px-4 py-2 border-t border-slate-200 bg-white text-xs text-slate-500 shrink-0">
+        <span x-text="plural(pagination?.total || 0, 'well')"></span>
         <div class="flex gap-1">
             <template x-for="p in Array.from({length: pagination?.last_page || 1}, (_,i) => i+1)" :key="p">
                 <button @click="page = p; load()" class="w-7 h-7 rounded text-xs transition-colors"
-                    :class="p === page ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-600'"
+                    :class="p === page ? 'bg-brand-600 text-white' : 'hover:bg-slate-100 text-slate-600'"
                     x-text="p"></button>
             </template>
         </div>
@@ -121,7 +121,7 @@
         <div class="modal" @click.stop>
             <div class="card-header">
                 <div class="w-2 h-5 rounded bg-orange-500"></div>
-                <h2 class="font-semibold text-gray-900">
+                <h2 class="font-semibold text-slate-900">
                     DC Tracking — Well <span x-text="editWell?.well_number"></span>
                 </h2>
                 <button @click="closeEdit()" class="ml-auto btn-ghost btn-sm">
@@ -166,7 +166,7 @@
                     </div>
                     @endforeach
                 </div>
-                <div class="flex justify-end gap-2 pt-4 mt-2 border-t border-gray-100">
+                <div class="flex justify-end gap-2 pt-4 mt-2 border-t border-slate-100">
                     <button @click="closeEdit()" class="btn-secondary">Cancel</button>
                     <button @click="save()" :disabled="saving" class="btn-primary">
                         <span x-text="saving ? 'Saving…' : 'Save changes'"></span>
@@ -186,10 +186,10 @@
          x-transition:leave="transition ease-in duration-100"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 translate-y-2"
-         class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl z-50 text-sm">
+         class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl z-50 text-sm">
         <span x-text="selectedIds.length + ' well(s) selected'"></span>
-        <button @click="clearSelection()" class="text-gray-400 hover:text-white px-2 transition-colors">Clear</button>
-        <div class="h-4 border-l border-gray-600"></div>
+        <button @click="clearSelection()" class="text-slate-400 hover:text-white px-2 transition-colors">Clear</button>
+        <div class="h-4 border-l border-slate-600"></div>
         <button @click="deleteSelected()"
                 class="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

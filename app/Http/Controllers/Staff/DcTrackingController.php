@@ -25,15 +25,20 @@ class DcTrackingController extends Controller
             );
         }
  
-        return response()->json($query->paginate($request->input('per_page', 50)));
+        return response()->json($query->paginate(max(1, min(200, (int) $request->input('per_page', 50)))));
     }
  
     public function update(Request $request, ProjectWell $well)
     {
-        $fillable = (new DcTracking)->getFillable();
+        // Only real tracking fields; ids, keys and computed values are never client-writable.
+        // (collect()->except() works on keys, not values, so it never removed these before.)
+        $model    = new DcTracking;
+        $editable = array_diff($model->getFillable(), ['project_well_id', 'updated_by']);
+        $casts    = $model->getCasts();
+
         $data = $request->validate(
-            collect($fillable)->except(['project_well_id', 'updated_by'])
-                ->mapWithKeys(fn($f) => [$f => 'nullable'])
+            collect($editable)
+                ->mapWithKeys(fn ($f) => [$f => ($casts[$f] ?? null) === 'date' ? 'nullable|date' : 'nullable'])
                 ->all()
         );
  

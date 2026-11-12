@@ -21,7 +21,11 @@ class AuditService
         $wellId    = $wellId ?? ($model->project_well_id ?? $model->id ?? null);
 
         $rows = [];
+        // Bookkeeping columns are not user-visible changes
+        $ignored = ['updated_at', 'created_at', 'updated_by'];
+
         foreach ($dirty as $field => $newValue) {
+            if (in_array($field, $ignored, true)) continue;
             if (!array_key_exists($field, $original)) continue;
             $oldValue = $original[$field];
             if ($oldValue === $newValue) continue;

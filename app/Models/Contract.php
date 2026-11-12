@@ -11,6 +11,8 @@ class Contract extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $attributes = ['status' => 'active'];
+
     protected $fillable = ['name', 'contract_no', 'description', 'status', 'created_by'];
 
     public function projects()

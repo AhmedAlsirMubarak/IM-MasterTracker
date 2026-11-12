@@ -63,6 +63,24 @@ class SapTracking extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
  
+    /**
+     * Error message when the end date falls before the start date, otherwise null.
+     * Accepts date strings, Carbon instances or null.
+     */
+    public static function dateRangeError($start, $end): ?string
+    {
+        if (blank($start) || blank($end)) return null;
+
+        try {
+            $start = Carbon::parse($start)->startOfDay();
+            $end   = Carbon::parse($end)->startOfDay();
+        } catch (\Throwable) {
+            return null; // format errors are reported by the date validation rule
+        }
+
+        return $end->lt($start) ? 'Earliest end date cannot be before the earliest start date.' : null;
+    }
+
     // Computed SAP KPI in days
     public function computeKpi(): ?int
     {

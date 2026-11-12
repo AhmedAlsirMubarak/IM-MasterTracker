@@ -104,8 +104,9 @@ class LetterController extends Controller
         $alerts = $contract->letters()
             ->where('status', 'open')
             ->where('direction', 'outgoing')
+            ->whereDate('submission_date', '<=', now()->subDays(10)->toDateString())
+            ->with('createdBy:id,name')
             ->get()
-            ->filter(fn($l) => max(0, $l->submission_date->diffInDays(now(), false)) >= 10)
             ->map(fn($l) => $this->format($l))
             ->values();
 
@@ -159,7 +160,7 @@ class LetterController extends Controller
     {
         $fp = fopen('php://memory', 'r+');
         foreach ($rows as $row) {
-            fputcsv($fp, array_map(fn($v) => $v ?? '', $row));
+            fputcsv($fp, array_map([\App\Support\Csv::class, 'cell'], $row));
         }
         rewind($fp);
         $csv = stream_get_contents($fp);

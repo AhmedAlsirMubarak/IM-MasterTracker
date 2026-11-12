@@ -5,16 +5,16 @@
 <div class="flex flex-col h-full" x-data="contractDetail({{ $contract->id }})">
 
     {{-- Header --}}
-    <div class="flex items-center gap-3 px-6 py-4 bg-white border-b border-gray-200 shrink-0">
+    <div class="page-header">
         <a href="{{ route('contracts.index') }}"
-           class="text-gray-400 hover:text-gray-600 transition-colors">
+           class="text-slate-400 hover:text-slate-600 transition-colors">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
         </a>
         <div>
-            <p class="text-2xs text-gray-400">Contract</p>
-            <h1 class="text-base font-semibold text-gray-900 leading-tight">{{ $contract->name }}</h1>
+            <p class="page-eyebrow">Contract</p>
+            <h1 class="page-title">{{ $contract->name }}</h1>
         </div>
         @if($contract->contract_no)
         <span class="badge badge-gray text-xs">{{ $contract->contract_no }}</span>
@@ -24,7 +24,7 @@
         </span>
         <div class="flex-1"></div>
         @if(auth()->user()->isSuperAdmin())
-        <button @click="showCreate = true" class="btn-primary btn-sm flex items-center gap-1.5">
+        <button @click="error = ''; showCreate = true" class="btn-primary btn-sm flex items-center gap-1.5">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
@@ -35,14 +35,14 @@
 
     {{-- Description --}}
     @if($contract->description)
-    <div class="px-6 py-2 bg-gray-50 border-b border-gray-200 text-sm text-gray-600 shrink-0">
+    <div class="px-6 py-2 bg-slate-50 border-b border-slate-200 text-sm text-slate-600 shrink-0">
         {{ $contract->description }}
     </div>
     @endif
 
     {{-- Loading --}}
     <div x-show="loading" class="flex-1 flex items-center justify-center">
-        <div class="flex items-center gap-2 text-gray-400 text-sm">
+        <div class="flex items-center gap-2 text-slate-400 text-sm">
             <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -56,13 +56,13 @@
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <template x-for="p in projects" :key="p.id">
                 <a :href="`/projects/${p.id}/master`"
-                   class="card hover:border-blue-300 hover:shadow-md transition-all duration-150 block group">
+                   class="card hover:border-brand-300 hover:shadow-md transition-all duration-150 block group">
                     <div class="card-body">
                         <div class="flex items-start justify-between gap-3 mb-3">
                             <div class="min-w-0 flex-1">
-                                <h3 class="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors"
+                                <h3 class="font-semibold text-slate-900 group-hover:text-brand-700 transition-colors"
                                     x-text="p.name"></h3>
-                                <p class="text-xs text-gray-400 mt-0.5" x-text="p.created_by?.name ? 'By ' + p.created_by.name : ''"></p>
+                                <p class="text-xs text-slate-500 mt-0.5" x-text="p.created_by?.name ? 'By ' + p.created_by.name : ''"></p>
                             </div>
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="badge"
@@ -70,7 +70,7 @@
                                     x-text="p.status"></span>
                                 @if(auth()->user()->isSuperAdmin())
                                 <button @click.prevent.stop="deleteProject(p)"
-                                        class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                        class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50"
                                         title="Delete project">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -81,18 +81,18 @@
                             </div>
                         </div>
 
-                        <p class="text-xs text-gray-500 line-clamp-2 mb-4"
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4"
                            x-text="p.description || 'No description.'"></p>
 
-                        <div class="flex items-center gap-4 text-xs text-gray-500 border-t border-gray-100 pt-3">
+                        <div class="flex items-center gap-4 text-xs text-slate-500 border-t border-slate-100 pt-3">
                             <span class="flex items-center gap-1">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                           d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                                 </svg>
-                                <span x-text="(p.wells_count || 0) + ' wells'"></span>
+                                <span x-text="plural(p.wells_count || 0, 'well')"></span>
                             </span>
-                            <span class="ml-auto flex items-center gap-1 text-blue-600 font-medium">
+                            <span class="ml-auto flex items-center gap-1 text-brand-600 font-medium">
                                 Open master grid
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -104,7 +104,7 @@
             </template>
 
             <div x-show="projects.length === 0 && !loading"
-                 class="col-span-full text-center py-16 text-gray-400 text-sm">
+                 class="col-span-full text-center py-16 text-slate-400 text-sm">
                 No projects in this contract yet.
                 @if(auth()->user()->isSuperAdmin())
                 Click <strong>New project</strong> to add one.
@@ -117,18 +117,18 @@
     <div x-show="showCreate" x-cloak class="modal-backdrop" @click.self="showCreate = false">
         <div class="modal" @click.stop>
             <div class="card-header">
-                <h2 class="font-semibold text-gray-900">New project</h2>
+                <h2 class="font-semibold text-slate-900">New project</h2>
                 <button @click="showCreate = false" class="ml-auto btn-ghost btn-sm">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </div>
-            <div class="card-body space-y-4">
+            <form class="card-body space-y-4" @submit.prevent="create()" @input="error = ''">
                 <div x-show="error" class="alert-danger" x-text="error"></div>
                 <div>
                     <label class="label">Project name <span class="text-red-500">*</span></label>
-                    <input x-model="form.name" class="input" placeholder="e.g. Phase 1 — North Area" />
+                    <input x-model="form.name" class="input" required maxlength="255" placeholder="e.g. Phase 1 — North Area" />
                 </div>
                 <div>
                     <label class="label">Description</label>
@@ -136,12 +136,12 @@
                         placeholder="Brief description…"></textarea>
                 </div>
                 <div class="flex justify-end gap-2 pt-2">
-                    <button @click="showCreate = false" class="btn-secondary">Cancel</button>
-                    <button @click="create()" :disabled="saving" class="btn-primary">
+                    <button type="button" @click="showCreate = false" class="btn-secondary">Cancel</button>
+                    <button type="submit" :disabled="saving" class="btn-primary">
                         <span x-text="saving ? 'Creating…' : 'Create project'"></span>
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 

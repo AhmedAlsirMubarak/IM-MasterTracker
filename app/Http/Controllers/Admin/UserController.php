@@ -19,7 +19,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name'       => 'required|string|max:255',
             'email'      => 'required|email|unique:users',
-            'password'   => 'required|min:8',
+            'password'   => 'required|string|min:8|max:255',
             'role'       => 'required|in:super_admin,manager,sap_admin,dc,im_lead,viewer',
             'department' => 'nullable|string',
         ]);
@@ -33,11 +33,30 @@ class UserController extends Controller
         $data = $request->validate([
             'name'       => 'sometimes|string|max:255',
             'email'      => 'sometimes|email|unique:users,email,' . $user->id,
-            'password'   => 'nullable|min:8',
+            'password'   => 'nullable|string|min:8|max:255',
             'role'       => 'sometimes|in:super_admin,manager,sap_admin,dc,im_lead,viewer',
             'department' => 'nullable|string',
             'is_active'  => 'boolean',
         ]);
+ 
+        // An admin cannot lock themselves out
+ 
+        if ($user->id === auth()->id()) {
+ 
+            if (array_key_exists('is_active', $data) && !$data['is_active']) {
+ 
+                return response()->json(['message' => 'You cannot deactivate your own account.'], 422);
+ 
+            }
+ 
+            if (isset($data['role']) && $data['role'] !== $user->role) {
+ 
+                return response()->json(['message' => 'You cannot change your own role.'], 422);
+ 
+            }
+ 
+        }
+
  
         if (!empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);

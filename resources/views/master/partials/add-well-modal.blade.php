@@ -1,7 +1,20 @@
 @if(auth()->user()->isSuperAdmin())
 <div x-show="showAddWell" x-cloak class="modal-backdrop" @click.self="showAddWell = false"
      x-data="{
-        form: { contract_no:'', scope:'', hua_date:'', well_id:'', well_number:'', well_type:'', well_field:'', well_location:'', ramz_id:'', year: {{ date('Y') }}, responsible_asset:'' },
+        blank() {
+            return { contract_no: @js($project->contract?->contract_no ?? ''), scope:'', hua_date:'', well_id:'', well_number:'', well_type:'', well_field:'', well_location:'', ramz_id:'', year: {{ date('Y') }}, responsible_asset:'' }
+        },
+        form: {},
+        init() {
+            this.form = this.blank()
+            this.$watch('showAddWell', open => { if (open) this.error = '' })
+        },
+        reset() {
+            this.form = this.blank()
+            this.wellTypeCustom = false
+            this.wellLocationCustom = false
+            this.error = ''
+        },
         wellTypeCustom: false,
         wellLocationCustom: false,
         saving: false, error: '',
@@ -14,23 +27,23 @@
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrf() },
                     body: JSON.stringify(this.form)
                 })
-                const data = await res.json()
-                if (!res.ok) { this.error = data.message || 'Failed to add well.' }
-                else { await this.load(); this.showAddWell = false }
+                const data = await res.json().catch(() => ({}))
+                if (!res.ok) { this.error = apiError(data, 'Failed to add well.') }
+                else { this.reset(); this.showAddWell = false; await this.load() }
             } catch { this.error = 'Network error.' }
             this.saving = false
         }
      }">
     <div class="modal" @click.stop>
         <div class="card-header">
-            <h2 class="font-semibold text-gray-900">Add well</h2>
+            <h2 class="font-semibold text-slate-900">Add well</h2>
             <button @click="showAddWell = false" class="ml-auto btn-ghost btn-sm">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
-        <div class="card-body">
+        <form class="card-body" @submit.prevent="save()" @input="error = ''">
             <div x-show="error" class="alert-danger mb-4" x-text="error"></div>
             <div class="grid grid-cols-2 gap-3">
                 <div><label class="label">Contract NO</label>
@@ -38,13 +51,13 @@
                 <div><label class="label">Scope</label>
                     <input x-model="form.scope" class="input" placeholder="ODC - LEK" /></div>
                 <div><label class="label">Well ID <span class="text-red-500">*</span></label>
-                    <input x-model="form.well_id" class="input" placeholder="36174" /></div>
+                    <input x-model="form.well_id" class="input" required maxlength="255" placeholder="36174" /></div>
                 <div><label class="label">Well Number</label>
                     <input x-model="form.well_number" class="input" placeholder="L-1187" /></div>
                 <div><label class="label">Field</label>
                     <select x-model="form.well_field" @change="form.well_location = ''" class="select">
                         <option value="">— Select —</option>
-                        @foreach(['AFAR','AL HUSAIN EAST','DAFIQ','DHRUMA','DHULAIMA','DHULAIMA WEST','LEKHWAIR','LEKHWAIR AN','LEKHWAIR AS','LEKHWAIR EAST','LEKHWAIR INTRA','LEKHWAIR - AN','LEKHWAIR - AS','LEKHWAIR - CD','MALAAN','MALAAN WEST','SAYYAH','SAYYAH - NORTH','UFUQ','UFUQ - ARUMA'] as $f)
+                        @foreach(config('wells.fields') as $f)
                         <option value="{{ $f }}">{{ $f }}</option>
                         @endforeach
                     </select>
@@ -86,7 +99,7 @@
                 <div><label class="label">Ramz ID</label>
                     <input x-model="form.ramz_id" class="input" placeholder="NOL0000L2342-EP" /></div>
                 <div><label class="label">Year</label>
-                    <input x-model="form.year" type="number" class="input" /></div>
+                    <input x-model="form.year" type="number" class="input" min="1900" max="2999" /></div>
                 <div class="col-span-2"><label class="label">Responsible Asset</label>
                     <select x-model="form.responsible_asset" class="select">
                         <option value="">— Select —</option>
@@ -95,13 +108,13 @@
                     </select>
                 </div>
             </div>
-            <div class="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100">
-                <button @click="showAddWell = false" class="btn-secondary">Cancel</button>
-                <button @click="save()" :disabled="saving" class="btn-primary">
+            <div class="flex justify-end gap-2 mt-4 pt-3 border-t border-slate-100">
+                <button type="button" @click="showAddWell = false" class="btn-secondary">Cancel</button>
+                <button type="submit" :disabled="saving" class="btn-primary">
                     <span x-text="saving ? 'Adding…' : 'Add well'"></span>
                 </button>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 @endif
