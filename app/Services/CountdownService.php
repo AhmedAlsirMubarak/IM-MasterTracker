@@ -1,69 +1,128 @@
 <?php
- 
+
 namespace App\Services;
- 
+
 use App\Models\ProjectWell;
 use Carbon\Carbon;
- 
+
+/**
+ * SAP KPI and the 90-day countdown, calculated exactly like the
+ * "ALL scope Detailed Tracking" sheet:
+ *
+ *   SAP KPI          = EarliestEndDate − EarliestStartDate
+ *   Countdown        = (Commissioning date + 90) − TODAY()
+ *   Actual Countdown = (JCC Actual Date Approved by PDO + 90) − TODAY()
+ */
 class CountdownService
 {
+    public const TARGET_DAYS = 90;
+
+    /** Countdown turns amber when this many days (or fewer) are left. */
+    public const WARNING_DAYS = 10;
+
     /**
-     * SAP KPI: remaining days from today until EarliestEndDate.
-     * Positive = days still remaining. Negative = past due.
+     * "Today" in the business timezone, so the countdown does not jump a day
+     * early or late around midnight while the app itself runs on UTC.
      */
-    public function computeSapKpi(?Carbon $endDate): ?int
+    public function today(): Carbon
     {
-        if (!$endDate) return null;
-        return (int) now()->startOfDay()->diffInDays($endDate->copy()->startOfDay(), false);
+        return Carbon::now(config('app.business_timezone', 'Asia/Dubai'))->startOfDay();
     }
 
+    /**
+     * SAP KPI: SAP work duration in days (End − Start), same as the sheet.
+     * Null until both dates are filled in.
+     */
+    public function computeSapKpi(?Carbon $startDate, ?Carbon $endDate): ?int
+    {
+        if (!$startDate || !$endDate) return null;
+
+        return $this->daysBetween($startDate, $endDate);
+    }
+
+    /**
+     * Badge colour for the SAP KPI duration (the sheet does not colour this column).
+     */
     public function sapKpiStatus(?int $kpi): string
     {
         if ($kpi === null) return 'none';
-        if ($kpi <= 3)  return 'red';   // 3 days or less (including past due)
-        if ($kpi <= 10) return 'amber'; // 4–10 days left
-        return 'green';                 // more than 10 days remaining
+        if ($kpi <= 30) return 'green';  // done within a month
+        if ($kpi <= 60) return 'amber';  // 31–60 days
+        return 'red';                    // over 60 days
     }
- 
+
     /**
-     * Countdown: days elapsed since Commissioning Date.
-     * Counting stops (closed) when E-Pad is closed.
-     * Red   = over 90 days elapsed
-     * Amber = 81–90 days elapsed (10 days left)
-     * Green = 80 days or fewer elapsed
+     * Countdown: days left until Commissioning date + 90 days, same as the sheet.
+     * Positive = days still left. Negative = days overdue.
      */
     public function countdownDays(?Carbon $commissioningDate): ?int
     {
-        if (!$commissioningDate) return null;
-        return (int) $commissioningDate->diffInDays(now());
+        return $this->daysLeftUntilTarget($commissioningDate);
     }
 
+    /**
+     * Actual Countdown: days left until JCC Actual Date (approved by PDO) + 90 days,
+     * same as the sheet's "Actual Countdown". Negative = days overdue.
+     */
+    public function actualCountdownDays(?Carbon $jccActualDate): ?int
+    {
+        return $this->daysLeftUntilTarget($jccActualDate);
+    }
+
+    /**
+     * Red when negative (as the sheet colours it), amber in the last 10 days,
+     * green otherwise. Counting stops (closed) once the E-Pad is closed.
+     */
     public function countdownStatus(?int $days, ?string $ePadCloseout): string
     {
         if ($days === null) return 'none';
         $isClosed = strtolower(trim($ePadCloseout ?? '')) === 'closed';
-        if ($isClosed) return 'closed';   // stopped — E-Pad closed
-        if ($days > 90) return 'overdue'; // RED  — over 90 days
-        if ($days > 80) return 'warning'; // AMBER — 10 days left
-        return 'ok';                      // GREEN
+        if ($isClosed) return 'closed';                    // stopped — E-Pad closed
+        if ($days < 0) return 'overdue';                   // RED   — past the 90-day target
+        if ($days <= self::WARNING_DAYS) return 'warning'; // AMBER — 10 days or fewer left
+        return 'ok';                                       // GREEN
     }
- 
+
     /**
      * Returns full computed summary for a well.
      */
     public function computeForWell(ProjectWell $well): array
     {
         $sap = $well->sapTracking;
- 
-        $kpi     = $this->computeSapKpi($sap?->earliest_end_date);
-        $cdDays  = $this->countdownDays($sap?->commissioning_date);
-        $cdStatus = $this->countdownStatus($cdDays, $well->e_pad_closeout);
- 
+
+        $kpi      = $this->computeSapKpi($sap?->earliest_start_date, $sap?->earliest_end_date);
+        $cdDays   = $this->countdownDays($sap?->commissioning_date);
+        $actualCd = $this->actualCountdownDays($sap?->jcc_actual_date);
+
         return [
-            'sap_kpi'            => $kpi,
-            'sap_kpi_status'     => $this->sapKpiStatus($kpi),
-            'countdown_days'     => $cdDays,
-            'countdown_status'   => $cdStatus,
+            'sap_kpi'                 => $kpi,
+            'sap_kpi_status'          => $this->sapKpiStatus($kpi),
+            'countdown_days'          => $cdDays,
+            'countdown_status'        => $this->countdownStatus($cdDays, $well->e_pad_closeout),
+            'actual_countdown_days'   => $actualCd,
+            'actual_countdown_status' => $this->countdownStatus($actualCd, $well->e_pad_closeout),
         ];
+    }
+
+    /**
+     * Days from today until $date + 90 days (negative once the target has passed).
+     */
+    private function daysLeftUntilTarget(?Carbon $date): ?int
+    {
+        if (!$date) return null;
+
+        return $this->daysBetween($this->today(), $date->copy()->addDays(self::TARGET_DAYS));
+    }
+
+    /**
+     * Whole calendar days from $from to $to (negative when $to is earlier),
+     * ignoring time of day and timezone, like subtracting two dates in Excel.
+     */
+    private function daysBetween(Carbon $from, Carbon $to): int
+    {
+        $a = Carbon::createFromDate($from->year, $from->month, $from->day, 'UTC')->startOfDay();
+        $b = Carbon::createFromDate($to->year, $to->month, $to->day, 'UTC')->startOfDay();
+
+        return (int) round($a->diffInDays($b, false));
     }
 }

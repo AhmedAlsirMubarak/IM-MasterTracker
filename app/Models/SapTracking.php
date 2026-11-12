@@ -4,6 +4,7 @@ namespace App\Models;
  
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use App\Services\CountdownService;
  
 class SapTracking extends Model
 {
@@ -12,7 +13,7 @@ class SapTracking extends Model
     protected $fillable = [
         'project_well_id',
         'earliest_start_date', 'earliest_end_date', 'station_code',
-        'hook_up_tie_in_completed', 'commissioning_date',
+        'hook_up_tie_in_completed', 'commissioning_date', 'jcc_actual_date',
         'z6_creation_date', 'z6_awap_date', 'z6_appr_date',
         'sap_upload_date', 'bom_linking_date',
         'afc_submitted_date', 'afc_edw_completed_date',
@@ -32,6 +33,7 @@ class SapTracking extends Model
         'earliest_end_date'      => 'date',
         'hook_up_tie_in_completed' => 'date',
         'commissioning_date'     => 'date',
+        'jcc_actual_date'        => 'date',
         'z6_creation_date'       => 'date',
         'z6_awap_date'           => 'date',
         'z6_appr_date'           => 'date',
@@ -50,7 +52,7 @@ class SapTracking extends Model
     public static array $masterViewColumns = [
         'earliest_start_date', 'earliest_end_date', 'station_code', 'z6_number',
         'afc_edw_status', 'sap_status', 'hook_up_tie_in_completed',
-        'commissioning_date',
+        'commissioning_date', 'jcc_actual_date',
     ];
  
     public function well()
@@ -81,19 +83,14 @@ class SapTracking extends Model
         return $end->lt($start) ? 'Earliest end date cannot be before the earliest start date.' : null;
     }
 
-    // Computed SAP KPI in days
+    // Computed SAP KPI in days (End − Start)
     public function computeKpi(): ?int
     {
-        if (!$this->earliest_start_date || !$this->earliest_end_date) return null;
-        return $this->earliest_start_date->diffInDays($this->earliest_end_date);
+        return app(CountdownService::class)->computeSapKpi($this->earliest_start_date, $this->earliest_end_date);
     }
  
     public function getKpiStatusAttribute(): string
     {
-        $kpi = $this->sap_kpi;
-        if ($kpi === null) return 'none';
-        if ($kpi <= 30) return 'green';
-        if ($kpi <= 60) return 'amber';
-        return 'red';
+        return app(CountdownService::class)->sapKpiStatus($this->sap_kpi);
     }
 }

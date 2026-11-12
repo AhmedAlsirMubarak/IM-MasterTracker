@@ -68,6 +68,12 @@ return [
     'timezone' => 'UTC',
 
     /*
+    | Timezone the business works in. Used for "today" in day counts such as
+    | the 90-day countdown, so they match the tracking sheet in local time.
+    */
+    'business_timezone' => env('APP_BUSINESS_TIMEZONE', 'Asia/Dubai'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

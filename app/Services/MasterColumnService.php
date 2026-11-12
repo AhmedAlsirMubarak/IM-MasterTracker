@@ -40,6 +40,7 @@ class MasterColumnService
                 ['column' => 'sap_status',               'label' => 'SAP Status',                  'type' => 'select', 'locked' => false],
                 ['column' => 'hook_up_tie_in_completed', 'label' => 'Hook up & Tie in Completed',  'type' => 'date',   'locked' => false],
                 ['column' => 'commissioning_date',       'label' => 'Commissioning Date',          'type' => 'date',   'locked' => false],
+                ['column' => 'jcc_actual_date',          'label' => 'JCC Actual Date (Approved by PDO)', 'type' => 'date', 'locked' => false],
                 ['column' => 'afc_document_spo_status',  'label' => 'AFC Document SPO Status',     'type' => 'select', 'locked' => false],
                 ['column' => 'afc_submitted_date',       'label' => 'AFC Submitted Date',          'type' => 'date',   'locked' => false],
                 ['column' => 'z6_creation_date',         'label' => 'Z6 Creation Date',            'type' => 'date',   'locked' => false],
@@ -77,6 +78,8 @@ class MasterColumnService
                 ['column' => 'sap_kpi',          'label' => 'SAP KPI (days)',      'type' => 'computed', 'locked' => true],
                 ['column' => 'countdown_days',   'label' => 'Countdown 90 days',   'type' => 'computed', 'locked' => true],
                 ['column' => 'countdown_status', 'label' => 'Countdown Status',    'type' => 'computed', 'locked' => true],
+                ['column' => 'actual_countdown_days',   'label' => 'Actual Countdown',        'type' => 'computed', 'locked' => true],
+                ['column' => 'actual_countdown_status', 'label' => 'Actual Countdown Status', 'type' => 'computed', 'locked' => true],
             ],
         ];
     }
@@ -124,8 +127,10 @@ class MasterColumnService
             ['source_table' => 'sap_tracking',  'source_column' => 'hook_up_tie_in_completed','display_label' => 'Tie in Completed',         'display_order' => 19, 'is_locked' => false],
             ['source_table' => 'sap_tracking',  'source_column' => 'commissioning_date',     'display_label' => 'Commissioning Date',        'display_order' => 20, 'is_locked' => false],
             ['source_table' => 'computed',       'source_column' => 'countdown_days',         'display_label' => 'Countdown 90 days',         'display_order' => 21, 'is_locked' => true],
-            ['source_table' => 'project_wells', 'source_column' => 'rlmu_status',            'display_label' => 'RLMU Status',               'display_order' => 22, 'is_locked' => false],
-            ['source_table' => 'dc_tracking',   'source_column' => 'asb_document_status',    'display_label' => 'ASB Document Status',       'display_order' => 23, 'is_locked' => false],
+            ['source_table' => 'sap_tracking',  'source_column' => 'jcc_actual_date',        'display_label' => 'JCC Actual Date',           'display_order' => 22, 'is_locked' => false],
+            ['source_table' => 'computed',       'source_column' => 'actual_countdown_days',  'display_label' => 'Actual Countdown',          'display_order' => 23, 'is_locked' => true],
+            ['source_table' => 'project_wells', 'source_column' => 'rlmu_status',            'display_label' => 'RLMU Status',               'display_order' => 24, 'is_locked' => false],
+            ['source_table' => 'dc_tracking',   'source_column' => 'asb_document_status',    'display_label' => 'ASB Document Status',       'display_order' => 25, 'is_locked' => false],
         ];
  
         $now  = now();

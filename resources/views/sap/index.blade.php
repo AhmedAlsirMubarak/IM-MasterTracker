@@ -151,6 +151,7 @@
                         ['afc_edw_status','AFC EDW Status','status:'.$statusOpts],
                         ['hook_up_tie_in_completed','Tie-in Completed','date'],
                         ['commissioning_date','Commissioning Date','date'],
+                        ['jcc_actual_date','JCC Actual Date (Approved by PDO)','date'],
                         ['afc_document_spo_status','AFC Document SPO Status','status:'.$statusOpts],
                         ['z6_creation_date','Z6 Creation Date','date'],
                         ['z6_awap_date','Z6 AWAP Date','date'],

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Services\CountdownService;
 
 class ProjectWell extends Model
 {
@@ -67,22 +68,14 @@ class ProjectWell extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    // Computed: countdown from commissioning date
+    // Computed: days left until Commissioning date + 90 (negative = overdue)
     public function getCountdownDaysAttribute(): ?int
     {
-        $commissioned = $this->sapTracking?->commissioning_date;
-        if (!$commissioned) return null;
-        return (int) $commissioned->diffInDays(now());
+        return app(CountdownService::class)->countdownDays($this->sapTracking?->commissioning_date);
     }
 
     public function getCountdownStatusAttribute(): string
     {
-        $days = $this->countdown_days;
-        if ($days === null) return 'none';
-        $ePadClosed = strtolower($this->e_pad_closeout ?? '') === 'closed';
-        if ($ePadClosed) return 'closed';
-        if ($days > 90) return 'overdue';   // RED
-        if ($days > 80) return 'warning';   // AMBER — 10 days left
-        return 'ok';                         // GREEN
+        return app(CountdownService::class)->countdownStatus($this->countdown_days, $this->e_pad_closeout);
     }
 }

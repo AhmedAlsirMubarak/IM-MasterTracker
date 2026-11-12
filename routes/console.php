@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\ImportSession;
+use App\Models\SapTracking;
+use App\Services\CountdownService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -47,6 +49,27 @@ Artisan::command('imports:prune {--hours=24 : Expire uploads left in the mapping
         $abandoned->count(), $deleted, $bytes / 1048576
     ));
 })->purpose('Delete leftover import files');
+
+Artisan::command('sap:recalculate-kpi', function () {
+    $service = app(CountdownService::class);
+    $changed = 0;
+    $checked = 0;
+
+    SapTracking::query()->chunkById(500, function ($rows) use ($service, &$changed, &$checked) {
+        foreach ($rows as $row) {
+            $checked++;
+            $kpi = $service->computeSapKpi($row->earliest_start_date, $row->earliest_end_date);
+            $stored = $row->sap_kpi === null ? null : (int) $row->sap_kpi;
+            if ($stored !== $kpi) {
+                // Quietly: a formula change is not a user edit, so keep it out of the audit log
+                $row->forceFill(['sap_kpi' => $kpi])->saveQuietly();
+                $changed++;
+            }
+        }
+    });
+
+    $this->info("Checked {$checked} SAP record(s); updated SAP KPI on {$changed}.");
+})->purpose('Recalculate the stored SAP KPI (End − Start) for every well');
 
 Schedule::command('imports:prune')->daily();
 

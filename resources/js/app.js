@@ -66,18 +66,21 @@ window.sourceColor = src => ({
     custom:        '#7C3AED',
 }[src] || '#888780')
 
+// SAP KPI = End − Start (SAP work duration). Keep in sync with CountdownService::sapKpiStatus
 window.kpiStatus = days => {
     if (days == null) return 'none'
-    if (days <= 3)  return 'red'    // 3 days or less (including past due)
-    if (days <= 10) return 'amber'  // 4–10 days left
-    return 'green'                  // more than 10 days remaining
+    if (days <= 30) return 'green'  // done within a month
+    if (days <= 60) return 'amber'  // 31–60 days
+    return 'red'                    // over 60 days
 }
 
+// Countdown = (Commissioning + 90) − today: days left, negative = overdue.
+// Keep in sync with CountdownService::countdownStatus
 window.countdownStatus = (days, ePad) => {
     if (days == null) return 'none'
-    if ((ePad || '').toLowerCase() === 'closed') return 'closed'
-    if (days > 90) return 'overdue'
-    if (days > 75) return 'warning'
+    if ((ePad || '').trim().toLowerCase() === 'closed') return 'closed'
+    if (days < 0)   return 'overdue'
+    if (days <= 10) return 'warning'
     return 'ok'
 }
 
@@ -288,7 +291,7 @@ Alpine.data('cellEditPanel', () => ({
     wellLocationCustom: false,
     WELL_TYPE_PRESETS: ['OP', 'OP FF', 'WI'],
     DATE_COLS: ['hua_date','earliest_start_date','earliest_end_date','hook_up_tie_in_completed',
-                'commissioning_date','z6_creation_date','z6_awap_date','z6_appr_date',
+                'commissioning_date','jcc_actual_date','z6_creation_date','z6_awap_date','z6_appr_date',
                 'sap_upload_date','bom_linking_date','afc_submitted_date','final_afc_upload_date',
                 'final_rlmu_upload_date','asb_receive_date','asb_document_submission_date'],
 
@@ -1102,6 +1105,7 @@ Alpine.data('importWizard', (projectId) => ({
             { value: 'earliest_end_date',        label: 'Earliest End Date',        aliases: ['end date', 'est end', 'earliestenddate', 'earliestenddate2', 'earliest end date 2'] },
             { value: 'hook_up_tie_in_completed', label: 'Tie-in Completed',         aliases: ['tie in', 'hookup', 'hook up', 'tie-in', 'hook up tie in', 'hook up and tie in completd', 'hook up and tie in completed', 'hookup and tie in', 'hook up tie in completd'] },
             { value: 'commissioning_date',       label: 'Commissioning Date',       aliases: ['commissioning', 'commissioning date'] },
+            { value: 'jcc_actual_date',          label: 'JCC Actual Date',          aliases: ['jcc', 'jcc date', 'jcc actual', 'jcc actual date', 'jcc approved', 'jcc actual date approved by pdo', 'jcc approved by pdo'] },
             { value: 'z6_creation_date',         label: 'Z6 Creation Date',         aliases: ['z6 created', 'z6 creation'] },
             { value: 'z6_awap_date',             label: 'Z6 AWAP Date',             aliases: ['awap', 'z6 awap'] },
             { value: 'z6_appr_date',             label: 'Z6 Appr Date',             aliases: ['z6 approval', 'z6 appr'] },
@@ -1404,10 +1408,7 @@ Alpine.data('sharedGrid', (token) => ({
     },
 
     kpiStatus(days) {
-        if (days == null) return 'none'
-        if (days <= 3)  return 'red'
-        if (days <= 10) return 'amber'
-        return 'green'
+        return window.kpiStatus(days)
     },
 
     badgeClass(status) {
