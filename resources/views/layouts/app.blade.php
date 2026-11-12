@@ -215,5 +215,7 @@
     </div>
 </div>
 
+@include('partials.confirm-dialog')
+
 </body>
 </html>
