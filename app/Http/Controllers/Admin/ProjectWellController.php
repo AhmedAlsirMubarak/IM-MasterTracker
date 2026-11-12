@@ -159,10 +159,10 @@ class ProjectWellController extends Controller
             $query->whereHas('sapTracking', fn ($q) => $q->where('sap_status', $sapStatus));
         }
 
-        // Delayed commissioning: elapsed days > 90 AND e-pad not closed
+        // Delayed commissioning: countdown overdue ((commissioning + 90) − today < 0) AND e-pad not closed
         if ($request->boolean('delayed_only')) {
-            $cutoff = now()->subDays(90)->toDateString();
-            $query->whereHas('sapTracking', fn ($q) => $q->whereDate('commissioning_date', '<=', $cutoff))
+            $cutoff = $this->countdown->today()->subDays(CountdownService::TARGET_DAYS)->toDateString();
+            $query->whereHas('sapTracking', fn ($q) => $q->whereDate('commissioning_date', '<', $cutoff))
                   ->where(fn ($q) => $q->whereNull('e_pad_closeout')
                       ->orWhereRaw("LOWER(TRIM(COALESCE(e_pad_closeout,''))) != 'closed'"));
         }

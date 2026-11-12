@@ -66,18 +66,21 @@ window.sourceColor = src => ({
     custom:        '#7C3AED',
 }[src] || '#888780')
 
+// SAP KPI = End − Start (SAP work duration). Keep in sync with CountdownService::sapKpiStatus
 window.kpiStatus = days => {
     if (days == null) return 'none'
-    if (days <= 3)  return 'red'    // 3 days or less (including past due)
-    if (days <= 10) return 'amber'  // 4–10 days left
-    return 'green'                  // more than 10 days remaining
+    if (days <= 30) return 'green'  // done within a month
+    if (days <= 60) return 'amber'  // 31–60 days
+    return 'red'                    // over 60 days
 }
 
+// Countdown = (Commissioning + 90) − today: days left, negative = overdue.
+// Keep in sync with CountdownService::countdownStatus
 window.countdownStatus = (days, ePad) => {
     if (days == null) return 'none'
-    if ((ePad || '').toLowerCase() === 'closed') return 'closed'
-    if (days > 90) return 'overdue'
-    if (days > 75) return 'warning'
+    if ((ePad || '').trim().toLowerCase() === 'closed') return 'closed'
+    if (days < 0)   return 'overdue'
+    if (days <= 10) return 'warning'
     return 'ok'
 }
 
@@ -1404,10 +1407,7 @@ Alpine.data('sharedGrid', (token) => ({
     },
 
     kpiStatus(days) {
-        if (days == null) return 'none'
-        if (days <= 3)  return 'red'
-        if (days <= 10) return 'amber'
-        return 'green'
+        return window.kpiStatus(days)
     },
 
     badgeClass(status) {

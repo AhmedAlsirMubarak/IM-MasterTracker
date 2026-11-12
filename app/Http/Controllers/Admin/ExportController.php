@@ -141,7 +141,7 @@ class ExportController extends Controller
                 $sap?->spir_status,
                 $sap?->asb_edw_status,
                 $sap?->edw_remark,
-                $this->countdown->computeSapKpi($sap?->earliest_end_date),
+                $this->countdown->computeSapKpi($sap?->earliest_start_date, $sap?->earliest_end_date),
                 $sap?->updatedBy?->name,
             ];
         }

@@ -28,9 +28,12 @@ class SapTrackingController extends Controller
  
         $wells = $query->paginate(max(1, min(200, (int) $request->input('per_page', 50))));
 
-        // The stored sap_kpi goes stale every day; send the live value instead
+        // Always send the freshly calculated KPI (End − Start), in case a stored value predates a formula change
         $wells->getCollection()->each(function ($well) {
-            $well->sapTracking?->setAttribute('sap_kpi', $this->countdown->computeSapKpi($well->sapTracking->earliest_end_date));
+            $well->sapTracking?->setAttribute('sap_kpi', $this->countdown->computeSapKpi(
+                $well->sapTracking->earliest_start_date,
+                $well->sapTracking->earliest_end_date,
+            ));
         });
 
         return response()->json($wells);

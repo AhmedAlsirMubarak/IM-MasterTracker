@@ -286,7 +286,7 @@
                                 <template x-if="col.source_column === 'countdown_days'">
                                     <span class="badge flex items-center gap-1"
                                         :class="badgeClass(well.computed?.countdown_status)"
-                                        :title="well.computed?.countdown_status === 'overdue' ? 'Over 90 days — E-Pad not closed' : ''">
+                                        :title="well.computed?.countdown_status === 'overdue' ? 'Past the 90-day target — E-Pad not closed' : ''">
                                         <span class="w-1.5 h-1.5 rounded-full"
                                             :class="{
                                                 'bg-red-500':   well.computed?.countdown_status === 'overdue',
