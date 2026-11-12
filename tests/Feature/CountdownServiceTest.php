@@ -68,3 +68,31 @@ it('colours the SAP KPI by duration', function () {
     expect($this->svc->sapKpiStatus(61))->toBe('red');
     expect($this->svc->sapKpiStatus(null))->toBe('none');
 });
+
+it('calculates the Actual Countdown as (JCC Actual Date + 90) − today, like the sheet', function () {
+    // Well 36174: JCC approved 2 Jul → target 30 Sep → −43 on 12 Nov
+    expect($this->svc->actualCountdownDays(Carbon::parse('2026-07-02')))->toBe(-43);
+    // Well 30091: JCC approved 17 Jun → −58
+    expect($this->svc->actualCountdownDays(Carbon::parse('2026-06-17')))->toBe(-58);
+    // Well 36028: JCC approved 5 Aug → −9
+    expect($this->svc->actualCountdownDays(Carbon::parse('2026-08-05')))->toBe(-9);
+    expect($this->svc->actualCountdownDays(null))->toBeNull();
+});
+
+it('returns both countdowns for a well, each with its own status', function () {
+    $well = new App\Models\ProjectWell(['e_pad_closeout' => null]);
+    $well->setRelation('sapTracking', new App\Models\SapTracking([
+        'earliest_start_date' => '2026-01-05',
+        'earliest_end_date'   => '2026-01-22',
+        'commissioning_date'  => '2026-02-19',
+        'jcc_actual_date'     => '2026-10-01',
+    ]));
+
+    expect($this->svc->computeForWell($well))->toMatchArray([
+        'sap_kpi'                 => 17,
+        'countdown_days'          => -176,
+        'countdown_status'        => 'overdue',
+        'actual_countdown_days'   => 48,
+        'actual_countdown_status' => 'ok',
+    ]);
+});

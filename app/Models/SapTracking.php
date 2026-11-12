@@ -13,7 +13,7 @@ class SapTracking extends Model
     protected $fillable = [
         'project_well_id',
         'earliest_start_date', 'earliest_end_date', 'station_code',
-        'hook_up_tie_in_completed', 'commissioning_date',
+        'hook_up_tie_in_completed', 'commissioning_date', 'jcc_actual_date',
         'z6_creation_date', 'z6_awap_date', 'z6_appr_date',
         'sap_upload_date', 'bom_linking_date',
         'afc_submitted_date', 'afc_edw_completed_date',
@@ -33,6 +33,7 @@ class SapTracking extends Model
         'earliest_end_date'      => 'date',
         'hook_up_tie_in_completed' => 'date',
         'commissioning_date'     => 'date',
+        'jcc_actual_date'        => 'date',
         'z6_creation_date'       => 'date',
         'z6_awap_date'           => 'date',
         'z6_appr_date'           => 'date',
@@ -51,7 +52,7 @@ class SapTracking extends Model
     public static array $masterViewColumns = [
         'earliest_start_date', 'earliest_end_date', 'station_code', 'z6_number',
         'afc_edw_status', 'sap_status', 'hook_up_tie_in_completed',
-        'commissioning_date',
+        'commissioning_date', 'jcc_actual_date',
     ];
  
     public function well()

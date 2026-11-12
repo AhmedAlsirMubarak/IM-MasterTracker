@@ -95,19 +95,21 @@
                                     <span class="badge" :class="badgeClass(kpiStatus(well.computed?.sap_kpi))"
                                           x-text="well.computed?.sap_kpi != null ? well.computed.sap_kpi + 'd' : '—'"></span>
                                 </template>
-                                <template x-if="col.source_column === 'countdown_days'">
-                                    <span class="badge flex items-center gap-1" :class="badgeClass(well.computed?.countdown_status)">
+                                <template x-if="['countdown_days', 'actual_countdown_days'].includes(col.source_column)">
+                                    <span class="badge flex items-center gap-1"
+                                        x-data="{ get st() { return well.computed?.[col.source_column.replace('_days', '_status')] }, get days() { return well.computed?.[col.source_column] } }"
+                                        :class="badgeClass(st)">
                                         <span class="w-1.5 h-1.5 rounded-full"
                                             :class="{
-                                                'bg-red-500':   well.computed?.countdown_status === 'overdue',
-                                                'bg-amber-500': well.computed?.countdown_status === 'warning',
-                                                'bg-green-500': ['ok','closed'].includes(well.computed?.countdown_status),
-                                                'bg-slate-400':  !well.computed?.countdown_status || well.computed?.countdown_status === 'none',
+                                                'bg-red-500':   st === 'overdue',
+                                                'bg-amber-500': st === 'warning',
+                                                'bg-green-500': ['ok','closed'].includes(st),
+                                                'bg-slate-400':  !st || st === 'none',
                                             }"></span>
-                                        <span x-text="well.computed?.countdown_days != null ? well.computed.countdown_days + 'd' : '—'"></span>
+                                        <span x-text="days != null ? days + 'd' : '—'"></span>
                                     </span>
                                 </template>
-                                <template x-if="col.source_column !== 'sap_kpi' && col.source_column !== 'countdown_days'">
+                                <template x-if="!['sap_kpi', 'countdown_days', 'actual_countdown_days'].includes(col.source_column)">
                                     <span x-text="getCellValue(well, col) || '—'"></span>
                                 </template>
                             </td>

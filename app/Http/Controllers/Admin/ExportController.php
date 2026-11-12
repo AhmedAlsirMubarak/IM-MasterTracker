@@ -55,6 +55,9 @@ class ExportController extends Controller
             ['RLMU Upload Status',  'dc_tracking.rlmu_upload_status',     fn ($w, $s, $d, $c) => $d?->rlmu_upload_status],
             ['Countdown Days',      'computed.countdown_days',            fn ($w, $s, $d, $c) => $c['countdown_days'] ?? null],
             ['Countdown Status',    'computed.countdown_status',          fn ($w, $s, $d, $c) => $c['countdown_status'] ?? null],
+            ['JCC Actual Date',     'sap_tracking.jcc_actual_date',       fn ($w, $s, $d, $c) => $date($s?->jcc_actual_date)],
+            ['Actual Countdown Days',   'computed.actual_countdown_days',   fn ($w, $s, $d, $c) => $c['actual_countdown_days'] ?? null],
+            ['Actual Countdown Status', 'computed.actual_countdown_status', fn ($w, $s, $d, $c) => $c['actual_countdown_status'] ?? null],
         ];
 
         // Non-admins never get hidden columns or hidden cells in the file
@@ -106,7 +109,7 @@ class ExportController extends Controller
             'Well No.', 'Well ID', 'Well Type',
             'Earliest Start Date', 'Earliest End Date', 'Station Code', 'Z6 Number',
             'SAP Status', 'AFC EDW Status', 'AFC Document SPO Status',
-            'Tie-in Completed', 'Commissioning Date',
+            'Tie-in Completed', 'Commissioning Date', 'JCC Actual Date',
             'Z6 Creation Date', 'Z6 AWAP Date', 'Z6 APPR Date',
             'SAP Upload Date', 'BOM Linking Date', 'BOM Linking Status',
             'CIMS Upload Status', 'SPIR Status', 'ASB EDW Status',
@@ -131,6 +134,7 @@ class ExportController extends Controller
                 $sap?->afc_document_spo_status,
                 $sap?->hook_up_tie_in_completed?->toDateString(),
                 $sap?->commissioning_date?->toDateString(),
+                $sap?->jcc_actual_date?->toDateString(),
                 $sap?->z6_creation_date?->toDateString(),
                 $sap?->z6_awap_date?->toDateString(),
                 $sap?->z6_appr_date?->toDateString(),

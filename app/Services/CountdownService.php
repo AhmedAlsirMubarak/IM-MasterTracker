@@ -9,8 +9,9 @@ use Carbon\Carbon;
  * SAP KPI and the 90-day countdown, calculated exactly like the
  * "ALL scope Detailed Tracking" sheet:
  *
- *   SAP KPI   = EarliestEndDate − EarliestStartDate
- *   Countdown = (Commissioning date + 90) − TODAY()
+ *   SAP KPI          = EarliestEndDate − EarliestStartDate
+ *   Countdown        = (Commissioning date + 90) − TODAY()
+ *   Actual Countdown = (JCC Actual Date Approved by PDO + 90) − TODAY()
  */
 class CountdownService
 {
@@ -56,11 +57,16 @@ class CountdownService
      */
     public function countdownDays(?Carbon $commissioningDate): ?int
     {
-        if (!$commissioningDate) return null;
+        return $this->daysLeftUntilTarget($commissioningDate);
+    }
 
-        $target = $commissioningDate->copy()->addDays(self::TARGET_DAYS);
-
-        return $this->daysBetween($this->today(), $target);
+    /**
+     * Actual Countdown: days left until JCC Actual Date (approved by PDO) + 90 days,
+     * same as the sheet's "Actual Countdown". Negative = days overdue.
+     */
+    public function actualCountdownDays(?Carbon $jccActualDate): ?int
+    {
+        return $this->daysLeftUntilTarget($jccActualDate);
     }
 
     /**
@@ -86,14 +92,26 @@ class CountdownService
 
         $kpi      = $this->computeSapKpi($sap?->earliest_start_date, $sap?->earliest_end_date);
         $cdDays   = $this->countdownDays($sap?->commissioning_date);
-        $cdStatus = $this->countdownStatus($cdDays, $well->e_pad_closeout);
+        $actualCd = $this->actualCountdownDays($sap?->jcc_actual_date);
 
         return [
-            'sap_kpi'            => $kpi,
-            'sap_kpi_status'     => $this->sapKpiStatus($kpi),
-            'countdown_days'     => $cdDays,
-            'countdown_status'   => $cdStatus,
+            'sap_kpi'                 => $kpi,
+            'sap_kpi_status'          => $this->sapKpiStatus($kpi),
+            'countdown_days'          => $cdDays,
+            'countdown_status'        => $this->countdownStatus($cdDays, $well->e_pad_closeout),
+            'actual_countdown_days'   => $actualCd,
+            'actual_countdown_status' => $this->countdownStatus($actualCd, $well->e_pad_closeout),
         ];
+    }
+
+    /**
+     * Days from today until $date + 90 days (negative once the target has passed).
+     */
+    private function daysLeftUntilTarget(?Carbon $date): ?int
+    {
+        if (!$date) return null;
+
+        return $this->daysBetween($this->today(), $date->copy()->addDays(self::TARGET_DAYS));
     }
 
     /**

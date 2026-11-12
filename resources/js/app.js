@@ -291,7 +291,7 @@ Alpine.data('cellEditPanel', () => ({
     wellLocationCustom: false,
     WELL_TYPE_PRESETS: ['OP', 'OP FF', 'WI'],
     DATE_COLS: ['hua_date','earliest_start_date','earliest_end_date','hook_up_tie_in_completed',
-                'commissioning_date','z6_creation_date','z6_awap_date','z6_appr_date',
+                'commissioning_date','jcc_actual_date','z6_creation_date','z6_awap_date','z6_appr_date',
                 'sap_upload_date','bom_linking_date','afc_submitted_date','final_afc_upload_date',
                 'final_rlmu_upload_date','asb_receive_date','asb_document_submission_date'],
 
@@ -1105,6 +1105,7 @@ Alpine.data('importWizard', (projectId) => ({
             { value: 'earliest_end_date',        label: 'Earliest End Date',        aliases: ['end date', 'est end', 'earliestenddate', 'earliestenddate2', 'earliest end date 2'] },
             { value: 'hook_up_tie_in_completed', label: 'Tie-in Completed',         aliases: ['tie in', 'hookup', 'hook up', 'tie-in', 'hook up tie in', 'hook up and tie in completd', 'hook up and tie in completed', 'hookup and tie in', 'hook up tie in completd'] },
             { value: 'commissioning_date',       label: 'Commissioning Date',       aliases: ['commissioning', 'commissioning date'] },
+            { value: 'jcc_actual_date',          label: 'JCC Actual Date',          aliases: ['jcc', 'jcc date', 'jcc actual', 'jcc actual date', 'jcc approved', 'jcc actual date approved by pdo', 'jcc approved by pdo'] },
             { value: 'z6_creation_date',         label: 'Z6 Creation Date',         aliases: ['z6 created', 'z6 creation'] },
             { value: 'z6_awap_date',             label: 'Z6 AWAP Date',             aliases: ['awap', 'z6 awap'] },
             { value: 'z6_appr_date',             label: 'Z6 Appr Date',             aliases: ['z6 approval', 'z6 appr'] },
