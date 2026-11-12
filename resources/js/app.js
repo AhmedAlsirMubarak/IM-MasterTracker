@@ -167,7 +167,14 @@ Alpine.data('contractList', () => ({
     },
 
     async deleteContract(contract) {
-        if (!confirm(`Delete "${contract.name}"?\n\nThis will permanently remove the contract and ALL its projects and wells.`)) return
+        if (!(await confirmDialog({
+            title:       'Delete contract?',
+            subject:     contract.name,
+            message:     'This permanently deletes the contract and everything in it:',
+            details:     ['All its projects and wells', 'All SAP and DC tracking data, comments and audit history', 'All its letters and CVs'],
+            confirmText: 'Delete contract',
+            requireText: contract.name,
+        }))) return
         const res = await fetch(`/contracts/${contract.id}`, { method: 'DELETE', headers: jsonHeaders() })
         if (res.ok) this.contracts = this.contracts.filter(c => c.id !== contract.id)
     },
@@ -207,7 +214,12 @@ Alpine.data('contractDetail', (contractId) => ({
     },
 
     async deleteProject(project) {
-        if (!confirm(`Delete "${project.name}"? This will permanently remove the project and all its wells.`)) return
+        if (!(await confirmDialog({
+            title:       'Delete project?',
+            subject:     project.name,
+            message:     'This permanently deletes the project and all its wells, including their SAP and DC tracking data.',
+            confirmText: 'Delete project',
+        }))) return
         const res = await fetch(`/projects/${project.id}`, { method: 'DELETE', headers: jsonHeaders() })
         if (res.ok) this.projects = this.projects.filter(p => p.id !== project.id)
     },
@@ -267,7 +279,13 @@ Alpine.data('userManager', () => ({
     },
 
     async deleteUser(id) {
-        if (!confirm('Delete this user? This cannot be undone.')) return
+        const user = this.users.find(u => u.id === id)
+        if (!(await confirmDialog({
+            title:       'Delete user?',
+            subject:     user ? `${user.name} — ${user.email}` : '',
+            message:     'They will no longer be able to sign in.',
+            confirmText: 'Delete user',
+        }))) return
         const res = await fetch(`/users/${id}`, { method: 'DELETE', headers: jsonHeaders() })
         if (res.ok) {
             this.users = this.users.filter(u => u.id !== id)
@@ -673,7 +691,12 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
     },
 
     async revokeShare() {
-        if (!confirm('Revoke this link? Anyone with the current URL will lose access immediately.')) return
+        if (!(await confirmDialog({
+            title:       'Revoke share link?',
+            message:     'Anyone with the current link will lose access immediately. You can create a new link afterwards.',
+            confirmText: 'Revoke link',
+            tone:        'warning',
+        }))) return
         this.shareLoading = true
         try {
             const res = await fetch(`/projects/${projectId}/share`, { method: 'DELETE', headers: jsonHeaders() })
@@ -716,7 +739,12 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
     },
 
     async deleteColumn(col) {
-        if (!confirm(`Delete column "${col.display_label}"?\n\nAll stored values will be permanently removed.`)) return
+        if (!(await confirmDialog({
+            title:       'Delete column?',
+            subject:     col.display_label,
+            message:     'All values stored in this column are permanently removed.',
+            confirmText: 'Delete column',
+        }))) return
         const res = await fetch(`/projects/${projectId}/custom-columns/${col.id}`, {
             method: 'DELETE', headers: jsonHeaders(),
         })
@@ -758,7 +786,7 @@ Alpine.data('masterGrid', (projectId, canBulkDelete = false) => ({
     },
     clearSelection() { this.selectedIds = [] },
     async deleteSelected() {
-        if (!confirm(`Delete ${this.selectedIds.length} well(s)? This cannot be undone.`)) return
+        if (!(await confirmWellDelete(this.selectedIds.length))) return
         const res = await fetch(`/projects/${projectId}/wells/bulk`, {
             method: 'DELETE', headers: jsonHeaders(),
             body: JSON.stringify({ ids: this.selectedIds }),
@@ -844,7 +872,7 @@ Alpine.data('sapGrid', (projectId, canBulkDelete = false) => ({
     },
     clearSelection() { this.selectedIds = [] },
     async deleteSelected() {
-        if (!confirm(`Delete ${this.selectedIds.length} well(s)? This cannot be undone.`)) return
+        if (!(await confirmWellDelete(this.selectedIds.length))) return
         const res = await fetch(`/projects/${projectId}/wells/bulk`, {
             method: 'DELETE', headers: jsonHeaders(),
             body: JSON.stringify({ ids: this.selectedIds }),
@@ -930,7 +958,7 @@ Alpine.data('dcGrid', (projectId, canBulkDelete = false) => ({
     },
     clearSelection() { this.selectedIds = [] },
     async deleteSelected() {
-        if (!confirm(`Delete ${this.selectedIds.length} well(s)? This cannot be undone.`)) return
+        if (!(await confirmWellDelete(this.selectedIds.length))) return
         const res = await fetch(`/projects/${projectId}/wells/bulk`, {
             method: 'DELETE', headers: jsonHeaders(),
             body: JSON.stringify({ ids: this.selectedIds }),
@@ -1603,7 +1631,12 @@ Alpine.data('letterManager', (contractId, isSuperAdmin = false) => ({
     },
 
     async deleteLetter(letter) {
-        if (!confirm(`Delete letter "${letter.reference_no}"? This cannot be undone.`)) return
+        if (!(await confirmDialog({
+            title:       'Delete letter?',
+            subject:     letter.reference_no,
+            message:     'The letter is permanently removed.',
+            confirmText: 'Delete letter',
+        }))) return
         const res = await fetch(`/contracts/${contractId}/letters/${letter.id}`, { method: 'DELETE', headers: jsonHeaders() })
         if (res.ok) this.letters = this.letters.filter(l => l.id !== letter.id)
     },
@@ -1803,7 +1836,12 @@ Alpine.data('cvManager', (contractId, isSuperAdmin = false) => ({
     },
 
     async deleteCv(cv) {
-        if (!confirm(`Delete CV letter "${cv.reference_no}" (${cv.person_name})? This cannot be undone.`)) return
+        if (!(await confirmDialog({
+            title:       'Delete CV letter?',
+            subject:     `${cv.reference_no} — ${cv.person_name}`,
+            message:     'The CV letter is permanently removed.',
+            confirmText: 'Delete CV letter',
+        }))) return
         const res = await fetch(`/contracts/${contractId}/cvs/${cv.id}`, { method: 'DELETE', headers: jsonHeaders() })
         if (res.ok) this.cvs = this.cvs.filter(c => c.id !== cv.id)
     },
@@ -1955,6 +1993,56 @@ Alpine.data('contractImport', (contractId, type) => ({
         this.submitting = false
     },
 }))
+
+/** Confirmation for deleting the wells selected in a grid. */
+function confirmWellDelete(count) {
+    return confirmDialog({
+        title:       count === 1 ? 'Delete this well?' : `Delete ${count} wells?`,
+        message:     `${count === 1 ? 'The well is' : 'These wells are'} removed from the project, together with ${count === 1 ? 'its' : 'their'} SAP and DC tracking data.`,
+        confirmText: count === 1 ? 'Delete well' : `Delete ${count} wells`,
+    })
+}
+
+/*
+ * App-wide confirmation dialog (resources/views/partials/confirm-dialog.blade.php),
+ * used instead of the browser's confirm() box. Resolves true when confirmed.
+ *
+ *   if (!(await confirmDialog({ title: 'Delete project?', subject: name, confirmText: 'Delete project' }))) return
+ *
+ * Options: title, subject (name shown highlighted), message, details (list),
+ * confirmText, cancelText, tone ('danger' | 'warning'), requireText (must be typed to enable confirm).
+ */
+const confirmDefaults = () => ({
+    title: 'Are you sure?', subject: '', message: '', details: [],
+    confirmText: 'Delete', cancelText: 'Cancel', tone: 'danger', requireText: '', typed: '',
+})
+
+Alpine.store('confirm', {
+    open: false,
+    ...confirmDefaults(),
+    _resolve: null,
+
+    ask(options = {}) {
+        this.close(false) // never leave an earlier caller waiting
+        Object.assign(this, confirmDefaults(), options)
+        this.open = true
+        return new Promise(resolve => { this._resolve = resolve })
+    },
+
+    get canConfirm() {
+        return !this.requireText || this.typed.trim() === String(this.requireText).trim()
+    },
+
+    close(result) {
+        if (!this.open) return
+        this.open = false
+        const resolve = this._resolve
+        this._resolve = null
+        resolve?.(result)
+    },
+})
+
+window.confirmDialog = options => Alpine.store('confirm').ask(options)
 
 window.Alpine = Alpine
 Alpine.start()
